@@ -1,0 +1,5 @@
+{
+  "name": "Stack Drift MVP",
+  "description": "A one-tap drift runner game. Hold to drift, release to coast. Chain perfect turns for high scores.",
+  "requestFramePermissions": []
+}
