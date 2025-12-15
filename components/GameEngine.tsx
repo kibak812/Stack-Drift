@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { GameScore, TurnQuality, TrackSegment, CarState, FloatingText, SkidMark } from '../types';
 import { GAME_CONSTANTS, COLORS } from '../constants';
 import { lerp, normalizeAngle, distance, closestPointOnLine } from '../utils/math';
@@ -79,6 +79,9 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>();
   const previousTimeRef = useRef<number>();
+
+  // Canvas dimensions with resize support
+  const [canvasSize, setCanvasSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   
   // Game State Refs - Initialize SYNCHRONOUSLY to prevent race conditions
   const carRef = useRef<CarState>({
@@ -217,6 +220,16 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
   useEffect(() => {
     fillInitialBuffer();
   }, [fillInitialBuffer]);
+
+  // Handle window resize
+  useEffect(() => {
+    const handleResize = () => {
+      setCanvasSize({ width: window.innerWidth, height: window.innerHeight });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     if (isReviving) {
@@ -491,7 +504,7 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
         scoreRef.current.feverTimer -= dt;
         if (scoreRef.current.feverTimer <= 0) {
             scoreRef.current.fever = false;
-            scoreRef.current.combo = 0; // Reset combo when fever ends
+            // Note: Combo is preserved after fever ends to reward skilled play
         }
     }
     
@@ -751,8 +764,8 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
   return (
     <canvas
       ref={canvasRef}
-      width={window.innerWidth}
-      height={window.innerHeight}
+      width={canvasSize.width}
+      height={canvasSize.height}
       className="absolute inset-0 z-0 touch-none"
     />
   );

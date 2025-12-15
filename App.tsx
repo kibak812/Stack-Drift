@@ -35,13 +35,17 @@ const App: React.FC = () => {
   };
 
   const handleGameOver = (finalScore: GameScore) => {
-    setGameScore(prev => ({...finalScore, highScore: Math.max(prev.highScore, finalScore.score)}));
-    
-    // Save High Score
-    if (finalScore.score > gameScore.highScore) {
-      localStorage.setItem('stackdrift_highscore', finalScore.score.toString());
-    }
-    
+    setGameScore(prev => {
+      const newHighScore = Math.max(prev.highScore, finalScore.score);
+
+      // Save High Score (using prev.highScore to avoid stale closure)
+      if (finalScore.score > prev.highScore) {
+        localStorage.setItem('stackdrift_highscore', finalScore.score.toString());
+      }
+
+      return { ...finalScore, highScore: newHighScore };
+    });
+
     setAppState(AppState.RESULT);
   };
 
