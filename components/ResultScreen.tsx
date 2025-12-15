@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshCw, PlayCircle, XCircle } from 'lucide-react';
+import { RefreshCw, PlayCircle } from 'lucide-react';
 import { GameScore } from '../types';
 
 interface ResultScreenProps {
@@ -16,7 +16,7 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ score, onRestart, on
       <div className="text-center mb-8">
         <h2 className="text-3xl font-bold text-white mb-2">CRASHED!</h2>
         <div className="text-6xl font-black text-rose-500 drop-shadow-2xl">{Math.floor(score.score)}</div>
-        <div className="text-slate-400 mt-2 font-mono">BEST: {Math.max(score.score, score.highScore)}</div>
+        <div className="text-slate-400 mt-2 font-mono">BEST: {score.highScore}</div>
       </div>
 
       <div className="grid gap-4 w-full max-w-xs">
