@@ -608,13 +608,22 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
         onGameOver(scoreRef.current);
     }
     
-    // 3. Track Gen - Ensure Large buffer
+    // 3. Track Gen - Ensure buffer ahead
     while (trackRef.current.length < currentSegmentIndexRef.current + GAME_CONSTANTS.TRACK_GENERATION_BUFFER) {
         const last = trackRef.current[trackRef.current.length - 1];
         trackRef.current.push(generateSegment(last));
     }
+
+    // 4. Track Cleanup - Remove old segments behind camera
+    // This prevents track overlap issues and keeps memory usage low
+    const deleteThreshold = 20; // Keep 20 segments behind for visual buffer
+    if (currentSegmentIndexRef.current > deleteThreshold) {
+        const deleteCount = currentSegmentIndexRef.current - deleteThreshold;
+        trackRef.current.splice(0, deleteCount);
+        currentSegmentIndexRef.current -= deleteCount;
+    }
     
-    // 4. Fever Logic
+    // 5. Fever Logic
     if (scoreRef.current.fever) {
         scoreRef.current.feverTimer -= dt;
         if (scoreRef.current.feverTimer <= 0) {
