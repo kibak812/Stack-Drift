@@ -19,7 +19,13 @@ export const GAME_CONSTANTS = {
   RENDER_WINDOW_SIZE: 16, // Segments ahead/behind to keep fully opaque
   
   SEGMENT_LENGTH_STRAIGHT: 300,
-  SEGMENT_RADIUS_TURN: 300,
+  SEGMENT_RADIUS_TURN: 300, // Base radius (kept for compatibility)
+
+  // Dynamic Curvature System (score-based)
+  SEGMENT_RADIUS_MIN: 200,    // Tight turn (harder)
+  SEGMENT_RADIUS_MAX: 350,    // Wide turn (easier)
+  TIGHT_TURN_START_SCORE: 1000,   // Score when tight turns start appearing
+  TIGHT_TURN_FULL_SCORE: 5000,    // Score when tight turn probability is at max
   
   // Scoring & Collision
   COLLISION_MARGIN: 0, // Strict: Crash exactly when car center (half body) crosses track edge.
