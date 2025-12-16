@@ -66,20 +66,20 @@ const createInitialSegment = (): TrackSegment => ({
     width: GAME_CONSTANTS.TRACK_WIDTH_START
 });
 
-// Calculate dynamic turn radius based on game progression
-const calculateDynamicRadius = (segmentId: number): number => {
-    const { SEGMENT_RADIUS_MIN, SEGMENT_RADIUS_MAX, TIGHT_TURN_START_SEGMENT, TIGHT_TURN_FULL_SEGMENT } = GAME_CONSTANTS;
+// Calculate dynamic turn radius based on current score
+const calculateDynamicRadius = (score: number): number => {
+    const { SEGMENT_RADIUS_MIN, SEGMENT_RADIUS_MAX, TIGHT_TURN_START_SCORE, TIGHT_TURN_FULL_SCORE } = GAME_CONSTANTS;
 
     // Before tight turns start, use wider radius only
-    if (segmentId < TIGHT_TURN_START_SEGMENT) {
+    if (score < TIGHT_TURN_START_SCORE) {
         return SEGMENT_RADIUS_MAX;
     }
 
-    // Calculate progression (0 to 1) for tight turn probability
-    const progression = Math.min(1, (segmentId - TIGHT_TURN_START_SEGMENT) / (TIGHT_TURN_FULL_SEGMENT - TIGHT_TURN_START_SEGMENT));
+    // Calculate progression (0 to 1) for tight turn probability based on score
+    const progression = Math.min(1, (score - TIGHT_TURN_START_SCORE) / (TIGHT_TURN_FULL_SCORE - TIGHT_TURN_START_SCORE));
 
-    // Random factor with bias towards tighter turns as game progresses
-    // Early: mostly wide turns, Later: mix of tight and wide
+    // Random factor with bias towards tighter turns as score increases
+    // Low score: mostly wide turns, High score: mix of tight and wide
     const tightTurnChance = progression * 0.6; // Max 60% chance for tight turns
 
     if (Math.random() < tightTurnChance) {
@@ -94,7 +94,7 @@ const calculateDynamicRadius = (segmentId: number): number => {
 };
 
 // Duplicated helper for use inside component (or we could extract it out, but for minimal diff keep local)
-const createSegmentData = (prevSeg: TrackSegment, type: 'STRAIGHT' | 'TURN_LEFT' | 'TURN_RIGHT', calculatedWidth: number): TrackSegment => {
+const createSegmentData = (prevSeg: TrackSegment, type: 'STRAIGHT' | 'TURN_LEFT' | 'TURN_RIGHT', calculatedWidth: number, score: number = 0): TrackSegment => {
     const id = prevSeg.id + 1;
     const startX = prevSeg.endX;
     const startY = prevSeg.endY;
@@ -111,8 +111,8 @@ const createSegmentData = (prevSeg: TrackSegment, type: 'STRAIGHT' | 'TURN_LEFT'
         width: calculatedWidth
       };
     } else {
-      // Use dynamic radius based on game progression
-      const radius = calculateDynamicRadius(id);
+      // Use dynamic radius based on current score
+      const radius = calculateDynamicRadius(score);
       const turnAngle = Math.PI / 2;
       const direction = type === 'TURN_LEFT' ? -1 : 1;
       const endAngle = normalizeAngle(startAngle + (turnAngle * direction));
@@ -273,9 +273,12 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
         GAME_CONSTANTS.TRACK_WIDTH_START - ((prevSeg.id + 1) * GAME_CONSTANTS.TRACK_NARROWING_RATE)
     );
 
+    // Get current score for dynamic difficulty
+    const currentScore = scoreRef.current.score;
+
     // Force first few segments to be STRAIGHT to avoid spawn overlaps
     if (prevSeg.id < 4) {
-        return createSegmentData(prevSeg, 'STRAIGHT', calculatedWidth);
+        return createSegmentData(prevSeg, 'STRAIGHT', calculatedWidth, currentScore);
     }
 
     // Simple anti-spiral rule: 2 consecutive same-direction turns → force opposite turn
@@ -307,7 +310,7 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
 
     // Try candidates in order, checking for collision safety
     for (const type of candidates) {
-        const candidateSeg = createSegmentData(prevSeg, type, calculatedWidth);
+        const candidateSeg = createSegmentData(prevSeg, type, calculatedWidth, currentScore);
         if (isSegmentSafe(candidateSeg, trackRef.current)) {
             return candidateSeg;
         }
@@ -316,14 +319,14 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
     // Fallback: try all options in a different order
     const allOptions: ('STRAIGHT' | 'TURN_LEFT' | 'TURN_RIGHT')[] = ['STRAIGHT', 'TURN_LEFT', 'TURN_RIGHT'];
     for (const type of allOptions) {
-        const candidateSeg = createSegmentData(prevSeg, type, calculatedWidth);
+        const candidateSeg = createSegmentData(prevSeg, type, calculatedWidth, currentScore);
         if (isSegmentSafe(candidateSeg, trackRef.current)) {
             return candidateSeg;
         }
     }
 
     // Final fallback: create a straight segment
-    return createSegmentData(prevSeg, 'STRAIGHT', calculatedWidth);
+    return createSegmentData(prevSeg, 'STRAIGHT', calculatedWidth, currentScore);
   };
   // --- End Track Generation Logic ---
 
