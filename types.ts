@@ -19,6 +19,7 @@ export interface GameScore {
   lastQuality: TurnQuality;
   fever: boolean;
   feverTimer: number;
+  feverGauge: number; // 0-100, fills up to trigger fever
 }
 
 export interface TrackSegment {

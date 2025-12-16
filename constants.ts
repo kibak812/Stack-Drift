@@ -28,8 +28,9 @@ export const GAME_CONSTANTS = {
   
   CRASH_GRACE_TIME: 0.0, // Instant death, no mercy.
   
-  // Combo
-  FEVER_THRESHOLD: 8,
+  // Fever Gauge System
+  FEVER_GAUGE_GOOD: 5,      // +5% per Good
+  FEVER_GAUGE_PERFECT: 20,  // +20% per Perfect
   FEVER_DURATION: 5, 
 };
 

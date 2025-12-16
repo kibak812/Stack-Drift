@@ -123,7 +123,7 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
   const currentTurnRateRef = useRef<number>(0);
   
   const scoreRef = useRef<GameScore>({
-    score: 0, highScore: 0, combo: 0, coins: 0, lastQuality: TurnQuality.NONE, fever: false, feverTimer: 0
+    score: 0, highScore: 0, combo: 0, coins: 0, lastQuality: TurnQuality.NONE, fever: false, feverTimer: 0, feverGauge: 0
   });
   
   // Initialize Track immediately so it's never empty
@@ -644,14 +644,26 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
       if (quality === TurnQuality.PERFECT) {
           spawnFloatingText("PERFECT!", COLORS.PERFECT, carRef.current.x, carRef.current.y, 1.5);
           spawnFloatingText(`+${points}`, COLORS.TEXT_WHITE, carRef.current.x, carRef.current.y - 40, 1.0);
-          
-          if (scoreRef.current.combo >= GAME_CONSTANTS.FEVER_THRESHOLD && !scoreRef.current.fever) {
-              scoreRef.current.fever = true;
-              scoreRef.current.feverTimer = GAME_CONSTANTS.FEVER_DURATION;
+
+          // Add to fever gauge (Perfect = +20%)
+          if (!scoreRef.current.fever) {
+              scoreRef.current.feverGauge = Math.min(100, scoreRef.current.feverGauge + GAME_CONSTANTS.FEVER_GAUGE_PERFECT);
           }
       } else {
           spawnFloatingText("GOOD", COLORS.GOOD, carRef.current.x, carRef.current.y, 1.0);
           spawnFloatingText(`+${points}`, COLORS.TEXT_WHITE, carRef.current.x, carRef.current.y - 30, 0.8);
+
+          // Add to fever gauge (Good = +5%)
+          if (!scoreRef.current.fever) {
+              scoreRef.current.feverGauge = Math.min(100, scoreRef.current.feverGauge + GAME_CONSTANTS.FEVER_GAUGE_GOOD);
+          }
+      }
+
+      // Trigger fever when gauge reaches 100%
+      if (scoreRef.current.feverGauge >= 100 && !scoreRef.current.fever) {
+          scoreRef.current.fever = true;
+          scoreRef.current.feverTimer = GAME_CONSTANTS.FEVER_DURATION;
+          scoreRef.current.feverGauge = 0; // Reset gauge when fever starts
       }
   };
 

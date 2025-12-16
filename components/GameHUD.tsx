@@ -33,10 +33,23 @@ export const GameHUD: React.FC<GameHUDProps> = ({ score }) => {
          )}
       </div>
 
-      {/* Fever Bar */}
-      {score.fever && (
+      {/* Fever Gauge / Fever Mode */}
+      {score.fever ? (
           <div className="mt-2 text-fuchsia-400 font-black text-3xl animate-bounce">
               FEVER MODE!
+          </div>
+      ) : (
+          <div className="mt-4 w-48">
+            <div className="flex justify-between text-xs text-fuchsia-300 mb-1">
+              <span>FEVER</span>
+              <span>{Math.floor(score.feverGauge)}%</span>
+            </div>
+            <div className="h-3 bg-slate-700 rounded-full overflow-hidden border border-slate-600">
+              <div
+                className="h-full bg-gradient-to-r from-fuchsia-500 to-pink-400 transition-all duration-150 ease-out"
+                style={{ width: `${score.feverGauge}%` }}
+              />
+            </div>
           </div>
       )}
     </div>
