@@ -648,13 +648,16 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
   };
 
   const evaluateSegmentScore = (seg: TrackSegment, edgeRatio: number) => {
+      // Fever mode gives 20% score bonus
+      const feverBonus = scoreRef.current.fever ? 1.2 : 1.0;
+
       if (seg.type === 'STRAIGHT') {
-          scoreRef.current.score += 10;
+          scoreRef.current.score += Math.floor(10 * feverBonus);
           return;
       }
-      
+
       let quality = TurnQuality.GOOD;
-      
+
       if (edgeRatio > GAME_CONSTANTS.PERFECT_EDGE_THRESHOLD) {
           quality = TurnQuality.PERFECT;
       } else {
@@ -668,7 +671,8 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
       else if (scoreRef.current.combo >= 5) multiplier = 2;
 
       const baseScore = 100;
-      const points = quality === TurnQuality.PERFECT ? baseScore * multiplier : baseScore;
+      const basePoints = quality === TurnQuality.PERFECT ? baseScore * multiplier : baseScore;
+      const points = Math.floor(basePoints * feverBonus);
 
       scoreRef.current.score += points;
       scoreRef.current.coins += Math.floor(points / 20);
