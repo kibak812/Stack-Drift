@@ -20,9 +20,40 @@ const getDistanceFromSegment = (seg: TrackSegment, pX: number, pY: number) => {
         const perpAngle = seg.startAngle + (Math.PI / 2 * dir);
         const cx = seg.startX + Math.cos(perpAngle) * radius;
         const cy = seg.startY + Math.sin(perpAngle) * radius;
-        
-        const distToCenter = distance(pX, pY, cx, cy);
-        return Math.abs(distToCenter - radius);
+
+        // Calculate the angle from arc center to the point
+        const pointAngle = Math.atan2(pY - cy, pX - cx);
+
+        // Calculate arc start and end angles
+        const arcStartAngle = perpAngle + Math.PI; // Start of arc
+        const arcEndAngle = arcStartAngle + (Math.PI / 2 * dir); // End of arc (90 degree turn)
+
+        // Normalize angles to check if point is within arc range
+        const normalizeToRange = (angle: number, reference: number) => {
+            let a = angle;
+            while (a < reference - Math.PI) a += Math.PI * 2;
+            while (a > reference + Math.PI) a -= Math.PI * 2;
+            return a;
+        };
+
+        const normPointAngle = normalizeToRange(pointAngle, arcStartAngle);
+        const normEndAngle = normalizeToRange(arcEndAngle, arcStartAngle);
+
+        // Check if point angle is within the arc range
+        const isWithinArc = dir === -1
+            ? (normPointAngle >= normEndAngle && normPointAngle <= arcStartAngle)
+            : (normPointAngle >= arcStartAngle && normPointAngle <= normEndAngle);
+
+        if (isWithinArc) {
+            // Point is within arc range - return perpendicular distance to arc
+            const distToCenter = distance(pX, pY, cx, cy);
+            return Math.abs(distToCenter - radius);
+        } else {
+            // Point is outside arc range - return distance to nearest endpoint
+            const distToStart = distance(pX, pY, seg.startX, seg.startY);
+            const distToEnd = distance(pX, pY, seg.endX, seg.endY);
+            return Math.min(distToStart, distToEnd);
+        }
     }
 };
 
@@ -171,10 +202,12 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
   const isSegmentSafe = (candidate: TrackSegment, history: TrackSegment[]): boolean => {
       // Check entire history except immediate previous segments
       const skipRecent = 4; // Skip last 4 segments (they're connected)
-      const safeDistance = GAME_CONSTANTS.TRACK_WIDTH_START + 100; // Larger margin for safety
+      // Safe distance must account for both track widths plus generous margin
+      // to prevent visual overlap when tracks run parallel
+      const safeDistance = GAME_CONSTANTS.TRACK_WIDTH_START + GAME_CONSTANTS.SEGMENT_RADIUS_TURN; // 260 + 300 = 560px
 
-      // Sample points along the candidate segment
-      const samplePoints = getSegmentSamplePoints(candidate, 8);
+      // Sample more points along the candidate segment for better precision
+      const samplePoints = getSegmentSamplePoints(candidate, 12);
 
       // Check each sample point against all older segments
       for (const point of samplePoints) {
