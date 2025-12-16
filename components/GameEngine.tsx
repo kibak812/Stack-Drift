@@ -215,12 +215,21 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
   // Initialize Track immediately so it's never empty
   const trackRef = useRef<TrackSegment[]>([createInitialSegment()]);
   
-  const cameraRef = useRef({ x: 0, y: 0, zoom: 0.8, shakeX: 0, shakeY: 0, shakeIntensity: 0 });
+  const cameraRef = useRef({
+    x: 0, y: 0, zoom: 0.8,
+    shakeX: 0, shakeY: 0,
+    // Impact punch - now uses target + smooth lerp
+    impactX: 0, impactY: 0,
+    impactTargetX: 0, impactTargetY: 0,
+    // Directional offset (smooth lerp)
+    driftOffsetX: 0, driftOffsetY: 0
+  });
   const effectsRef = useRef<FloatingText[]>([]);
   const skidMarksRef = useRef<SkidMark[]>([]); // New: Skid Marks
   const lastTirePosRef = useRef<{lx: number, ly: number, rx: number, ry: number} | null>(null); // For continuous lines
   const speedLinesRef = useRef<SpeedLine[]>([]); // Speed lines for atmosphere
-  
+  const wasDriftingRef = useRef<boolean>(false); // Track drift state changes for impact punch
+
   // Input: 0 = None, -1 = Left, 1 = Right
   const inputDirRef = useRef<number>(0);
   
@@ -570,20 +579,54 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
         }
       }
 
-      // Camera Shake - based on drift and speed
+      // === Camera Effects ===
+      const cam = cameraRef.current;
+      const isDrifting = car.isDrifting;
+      const wasDrifting = wasDriftingRef.current;
+      const driftDir = Math.sign(currentTurnRateRef.current); // -1 left, 1 right
+
+      // 1. Impact Punch - triggers on drift state change (smooth version)
+      if (isDrifting && !wasDrifting) {
+        // Drift START: set target punch (opposite to drift direction)
+        const punchStrength = 15;
+        const punchAngle = car.heading + (Math.PI / 2) * (-driftDir);
+        cam.impactTargetX = Math.cos(punchAngle) * punchStrength;
+        cam.impactTargetY = Math.sin(punchAngle) * punchStrength;
+      } else if (!isDrifting && wasDrifting) {
+        // Drift END: smaller target punch
+        const punchStrength = 8;
+        cam.impactTargetX = (Math.random() - 0.5) * punchStrength;
+        cam.impactTargetY = (Math.random() - 0.5) * punchStrength;
+      }
+
+      // Smoothly lerp current impact toward target (gentle attack)
+      cam.impactX = lerp(cam.impactX, cam.impactTargetX, dt * 6);
+      cam.impactY = lerp(cam.impactY, cam.impactTargetY, dt * 6);
+
+      // Decay target back to zero (slow release)
+      cam.impactTargetX = lerp(cam.impactTargetX, 0, dt * 3);
+      cam.impactTargetY = lerp(cam.impactTargetY, 0, dt * 3);
+
+      // 2. Directional Offset - smooth offset opposite to drift direction
       const driftIntensity = Math.abs(currentTurnRateRef.current) / GAME_CONSTANTS.MAX_TURN_STRENGTH;
-      const speedIntensity = Math.max(0, (speedRatio - 0.5) * 2); // Kicks in above 50% speed
+      const targetOffsetAmount = isDrifting ? driftIntensity * 20 : 0; // Max 20px offset (reduced)
+      const offsetAngle = car.heading + (Math.PI / 2) * (-driftDir);
 
-      // Target shake intensity: higher when drifting or going fast
-      const targetShake = Math.min(1.0, driftIntensity * 0.7 + speedIntensity * 0.4);
+      const targetOffsetX = Math.cos(offsetAngle) * targetOffsetAmount;
+      const targetOffsetY = Math.sin(offsetAngle) * targetOffsetAmount;
 
-      // Smooth transition to target
-      cameraRef.current.shakeIntensity = lerp(cameraRef.current.shakeIntensity, targetShake, dt * 8);
+      // Smooth lerp to target offset (slower for buttery feel)
+      cam.driftOffsetX = lerp(cam.driftOffsetX, targetOffsetX, dt * 3);
+      cam.driftOffsetY = lerp(cam.driftOffsetY, targetOffsetY, dt * 3);
 
-      // Generate random shake offset
-      const shakeAmount = cameraRef.current.shakeIntensity * 6; // Max 6 pixels shake
-      cameraRef.current.shakeX = (Math.random() - 0.5) * 2 * shakeAmount;
-      cameraRef.current.shakeY = (Math.random() - 0.5) * 2 * shakeAmount;
+      // 3. Speed Shake - subtle continuous shake at high speed only
+      const speedIntensity = Math.max(0, (speedRatio - 0.6) * 2.5); // Kicks in above 60% speed
+      const speedShakeAmount = speedIntensity * 3; // Max 3 pixels (subtle)
+      cam.shakeX = (Math.random() - 0.5) * 2 * speedShakeAmount;
+      cam.shakeY = (Math.random() - 0.5) * 2 * speedShakeAmount;
+
+      // Update drift state tracker
+      wasDriftingRef.current = isDrifting;
   };
 
   const updatePhysics = (dt: number) => {
@@ -849,9 +892,11 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
     cameraRef.current.y = lerp(cameraRef.current.y, car.y, 0.1);
 
     ctx.save();
-    // Apply camera shake offset at screen space level
-    const { shakeX, shakeY } = cameraRef.current;
-    ctx.translate(width / 2 + shakeX, height * 0.8 + shakeY);
+    // Combine all camera effects: shake + impact punch + drift offset
+    const { shakeX, shakeY, impactX, impactY, driftOffsetX, driftOffsetY } = cameraRef.current;
+    const totalOffsetX = shakeX + impactX + driftOffsetX;
+    const totalOffsetY = shakeY + impactY + driftOffsetY;
+    ctx.translate(width / 2 + totalOffsetX, height * 0.8 + totalOffsetY);
     ctx.scale(cameraRef.current.zoom, cameraRef.current.zoom);
     ctx.rotate(-car.heading - Math.PI/2);
     ctx.translate(-cameraRef.current.x, -cameraRef.current.y);
