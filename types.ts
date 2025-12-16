@@ -63,3 +63,56 @@ export interface SkidMark {
   y2: number;
   life: number; // 0 to 1
 }
+
+// === Visual Customization Types ===
+
+export interface CarVisualConfig {
+  bodyColor: string;
+  bodySecondaryColor: string;
+  wheelColor: string;
+  cockpitColor: string;
+  headlightColor: string;
+  glowColor: string;
+}
+
+export enum TrailType {
+  BASIC = 'BASIC',
+  GLOW = 'GLOW',
+  NEON = 'NEON',
+  PARTICLE = 'PARTICLE'
+}
+
+export interface TrailConfig {
+  type: TrailType;
+  primaryColor: string;
+  secondaryColor?: string;
+  width: number;
+  opacity: number;
+  fadeRate: number;
+  glowRadius?: number;
+  particleCount?: number;
+}
+
+export interface EnhancedSkidMark extends SkidMark {
+  trailType: TrailType;
+  color: string;
+  width: number;
+  glowRadius?: number;
+}
+
+export interface TrailParticle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  size: number;
+  life: number;
+  color: string;
+}
+
+export interface SpeedLine {
+  x: number;
+  y: number;
+  length: number;
+  opacity: number;
+}

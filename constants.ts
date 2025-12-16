@@ -56,3 +56,38 @@ export const COLORS = {
   MISS: '#94a3b8', // slate-400
   TEXT_WHITE: '#ffffff',
 };
+
+// Enhanced Car Dimensions
+export const CAR_DIMS = {
+  bodyLength: 32,
+  bodyWidth: 18,
+  cornerRadius: 6,
+  wheelLength: 8,
+  wheelWidth: 4,
+  wheelOffset: { x: 10, y: 10 },
+  cockpitLength: 10,
+  cockpitWidth: 10,
+  cockpitOffset: -2,
+  headlightRadius: 3,
+  headlightOffset: 13,
+};
+
+// Default Car Visual Config
+export const DEFAULT_CAR_VISUAL = {
+  bodyColor: '#f43f5e',      // rose-500
+  bodySecondaryColor: '#be123c', // rose-700
+  wheelColor: '#1e293b',     // slate-800
+  cockpitColor: '#0f172a',   // slate-900
+  headlightColor: '#ffffff',
+  glowColor: '#ffffff',
+};
+
+// Fever Mode Car Visual Config
+export const FEVER_CAR_VISUAL = {
+  bodyColor: '#e879f9',      // fuchsia-400
+  bodySecondaryColor: '#c026d3', // fuchsia-600
+  wheelColor: '#1e293b',
+  cockpitColor: '#0f172a',
+  headlightColor: '#f0abfc', // fuchsia-300
+  glowColor: '#f0f',
+};

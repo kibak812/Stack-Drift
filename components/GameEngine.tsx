@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
-import { GameScore, TurnQuality, TrackSegment, CarState, FloatingText, SkidMark } from '../types';
-import { GAME_CONSTANTS, COLORS } from '../constants';
+import { GameScore, TurnQuality, TrackSegment, CarState, FloatingText, SkidMark, CarVisualConfig, SpeedLine } from '../types';
+import { GAME_CONSTANTS, COLORS, DEFAULT_CAR_VISUAL, FEVER_CAR_VISUAL, CAR_DIMS } from '../constants';
 import { lerp, normalizeAngle, distance, closestPointOnLine } from '../utils/math';
+import { drawEnhancedCar } from '../utils/rendering';
 
 interface GameEngineProps {
   onGameOver: (score: GameScore) => void;
   onScoreUpdate: (score: GameScore) => void;
-  isReviving: boolean; 
+  isReviving: boolean;
+  carVisual?: CarVisualConfig;
 }
 
 // Helper: Calculate distance from point to segment geometry
@@ -135,7 +137,7 @@ const createSegmentData = (prevSeg: TrackSegment, type: 'STRAIGHT' | 'TURN_LEFT'
     }
 };
 
-export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdate, isReviving }) => {
+export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdate, isReviving, carVisual }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>();
   const previousTimeRef = useRef<number>();
@@ -162,6 +164,7 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
   const effectsRef = useRef<FloatingText[]>([]);
   const skidMarksRef = useRef<SkidMark[]>([]); // New: Skid Marks
   const lastTirePosRef = useRef<{lx: number, ly: number, rx: number, ry: number} | null>(null); // For continuous lines
+  const speedLinesRef = useRef<SpeedLine[]>([]); // Speed lines for atmosphere
   
   // Input: 0 = None, -1 = Left, 1 = Right
   const inputDirRef = useRef<number>(0);
@@ -389,6 +392,7 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
         inputDirRef.current = 0;
         effectsRef.current = [];
         skidMarksRef.current = []; // Clear skids on revive
+        speedLinesRef.current = []; // Clear speed lines on revive
         lastTirePosRef.current = null;
         framesRef.current = 0; // Reset safe frames on revive
         currentSegmentIndexRef.current = safeIndex + 1; // Start from the new straight section
@@ -453,12 +457,14 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
   };
 
   const updateEffects = (dt: number) => {
+      const car = carRef.current;
+
       // Update Floating Text
       for (let i = effectsRef.current.length - 1; i >= 0; i--) {
           const fx = effectsRef.current[i];
           fx.life -= dt * 1.5; // Fade speed
           fx.y -= dt * 100; // Float up speed
-          
+
           if (fx.life <= 0) {
               effectsRef.current.splice(i, 1);
           }
@@ -470,6 +476,33 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
         mark.life -= dt * 1.5; // Skid fade speed
         if (mark.life <= 0) {
             skidMarksRef.current.splice(i, 1);
+        }
+      }
+
+      // Update Speed Lines
+      for (let i = speedLinesRef.current.length - 1; i >= 0; i--) {
+        const line = speedLinesRef.current[i];
+        line.opacity -= dt * 2.5; // Faster fade for speed lines
+        if (line.opacity <= 0) {
+            speedLinesRef.current.splice(i, 1);
+        }
+      }
+
+      // Generate Speed Lines when moving fast
+      const speedRatio = car.speed / GAME_CONSTANTS.MAX_SPEED;
+      if (speedRatio > 0.5 && !car.isCrashed && speedLinesRef.current.length < 30) {
+        const spawnChance = (speedRatio - 0.5) * 0.4 * dt * 60; // Scale with delta time
+        if (Math.random() < spawnChance) {
+          // Spawn in peripheral vision area (behind and to the sides)
+          const angle = car.heading + Math.PI + (Math.random() - 0.5) * 1.2;
+          const dist = 150 + Math.random() * 250;
+
+          speedLinesRef.current.push({
+            x: car.x + Math.cos(angle) * dist + (Math.random() - 0.5) * 150,
+            y: car.y + Math.sin(angle) * dist + (Math.random() - 0.5) * 150,
+            length: 40 + speedRatio * 60,
+            opacity: 0.2 + speedRatio * 0.3
+          });
         }
       }
   };
@@ -502,19 +535,18 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
 
     // --- Skid Mark Generation ---
     if (car.isDrifting) {
-        // Car visual dimensions approx: 30 long (-15 to +15), 20 wide (-10 to +10)
-        // Rear axle approx at x = -15
-        const rearAxleX = -15;
-        const tireY = 10;
-        
+        // Use CAR_DIMS for accurate tire positions
+        const rearAxleX = -CAR_DIMS.wheelOffset.x;
+        const tireY = CAR_DIMS.wheelOffset.y;
+
         const cosA = Math.cos(car.visualAngle);
         const sinA = Math.sin(car.visualAngle);
-        
+
         // Calculate current tire positions in world space
         // Left Tire
         const lx = car.x + (rearAxleX * cosA - (-tireY) * sinA);
         const ly = car.y + (rearAxleX * sinA + (-tireY) * cosA);
-        
+
         // Right Tire
         const rx = car.x + (rearAxleX * cosA - (tireY) * sinA);
         const ry = car.y + (rearAxleX * sinA + (tireY) * cosA);
@@ -532,7 +564,7 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
                 life: 1.0
             });
         }
-        
+
         lastTirePosRef.current = { lx, ly, rx, ry };
     } else {
         lastTirePosRef.current = null;
@@ -744,11 +776,17 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
     ctx.translate(-cameraRef.current.x, -cameraRef.current.y);
     
     drawTrack(ctx);
+    drawSpeedLines(ctx, car); // Speed lines in world space
     drawSkidMarks(ctx); // Render skids before car but after track
     drawCar(ctx, car);
     drawEffects(ctx);
-    
+
     ctx.restore();
+
+    // Fever Mode Visual Effects (screen space)
+    if (scoreRef.current.fever) {
+      drawFeverOverlay(ctx, width, height);
+    }
 
     // Visual Warning
     const ratio = currentRatioRef.current;
@@ -894,7 +932,7 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
       effectsRef.current.forEach(fx => {
           ctx.save();
           ctx.translate(fx.x, fx.y);
-          ctx.rotate(carRef.current.heading + Math.PI/2); 
+          ctx.rotate(carRef.current.heading + Math.PI/2);
           ctx.globalAlpha = fx.life;
           ctx.fillStyle = fx.color;
           ctx.font = `bold ${32 * fx.scale}px sans-serif`;
@@ -906,73 +944,71 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
       });
   };
 
+  const drawSpeedLines = (ctx: CanvasRenderingContext2D, car: CarState) => {
+      if (speedLinesRef.current.length === 0) return;
+
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineWidth = 2;
+
+      speedLinesRef.current.forEach(line => {
+          ctx.strokeStyle = `rgba(255, 255, 255, ${line.opacity * 0.3})`;
+          ctx.beginPath();
+          ctx.moveTo(line.x, line.y);
+          ctx.lineTo(
+            line.x + Math.cos(car.heading) * line.length,
+            line.y + Math.sin(car.heading) * line.length
+          );
+          ctx.stroke();
+      });
+
+      ctx.restore();
+  };
+
+  const drawFeverOverlay = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+      // Pulsing vignette with fever color
+      const pulse = 0.5 + Math.sin(gameTimeRef.current * 8) * 0.2;
+
+      ctx.save();
+      const gradient = ctx.createRadialGradient(
+        width / 2, height / 2, height * 0.3,
+        width / 2, height / 2, height * 0.9
+      );
+      gradient.addColorStop(0, 'rgba(236, 72, 153, 0)');
+      gradient.addColorStop(1, `rgba(236, 72, 153, ${pulse * 0.12})`);
+
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+
+      // Subtle scan lines effect (very subtle, only in fever)
+      ctx.globalAlpha = 0.02;
+      ctx.fillStyle = '#ffffff';
+      for (let y = 0; y < height; y += 4) {
+        ctx.fillRect(0, y, width, 1);
+      }
+      ctx.globalAlpha = 1.0;
+
+      ctx.restore();
+  };
+
   const drawCar = (ctx: CanvasRenderingContext2D, car: CarState) => {
       ctx.save();
       ctx.translate(car.x, car.y);
       ctx.rotate(car.visualAngle);
 
-      ctx.fillStyle = scoreRef.current.fever ? COLORS.CAR_FEVER : COLORS.CAR;
+      // Use provided car visual config or default based on fever state
+      const isFever = scoreRef.current.fever;
+      const visualConfig = carVisual || (isFever ? FEVER_CAR_VISUAL : DEFAULT_CAR_VISUAL);
 
-      ctx.beginPath();
-      ctx.rect(-15, -10, 30, 20);
-      ctx.fill();
-
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(10, -8, 5, 4);
-      ctx.fillRect(10, 4, 5, 4);
-
-      if (car.isDrifting) {
-          ctx.shadowBlur = 10;
-          ctx.shadowColor = scoreRef.current.fever ? '#f0f' : '#fff';
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-          ctx.beginPath();
-          ctx.arc(-20, 10, 5, 0, Math.PI * 2);
-          ctx.arc(-20, -10, 5, 0, Math.PI * 2);
-          ctx.fill();
-      }
-
-      // Fever gauge - vertical bar beside car (left side)
-      // In local coords: X = car direction (front/back), Y = car sides (left/right)
-      const gaugeY = -18; // Left side of car (negative Y = left)
-      const gaugeW = 4;   // Width (Y direction - thickness)
-      const gaugeH = 40;  // Height (X direction - length along car)
-      const gaugeX = -gaugeH / 2; // Centered along car length
-      const fillLen = (scoreRef.current.feverGauge / 100) * gaugeH;
-
-      ctx.shadowBlur = 0;
-
-      if (scoreRef.current.fever) {
-          // Fever active - pulsing full bar
-          const pulse = 0.7 + Math.sin(gameTimeRef.current * 10) * 0.3;
-          ctx.fillStyle = `rgba(236, 72, 153, ${pulse})`; // pink-500
-          ctx.fillRect(gaugeX, gaugeY, gaugeH, gaugeW);
-          // Glow effect
-          ctx.shadowBlur = 8;
-          ctx.shadowColor = '#ec4899';
-          ctx.fillRect(gaugeX, gaugeY, gaugeH, gaugeW);
-          ctx.shadowBlur = 0;
-      } else {
-          // Background (empty part)
-          ctx.fillStyle = 'rgba(30, 41, 59, 0.8)'; // slate-800
-          ctx.fillRect(gaugeX, gaugeY, gaugeH, gaugeW);
-
-          // Filled part (from back to front = -X to +X direction)
-          if (fillLen > 0) {
-              const gradient = ctx.createLinearGradient(gaugeX, gaugeY, gaugeX + fillLen, gaugeY);
-              gradient.addColorStop(0, '#a855f7'); // purple-500
-              gradient.addColorStop(1, '#ec4899'); // pink-500
-              ctx.fillStyle = gradient;
-              ctx.fillRect(gaugeX, gaugeY, fillLen, gaugeW);
-
-              // Glow when high
-              if (scoreRef.current.feverGauge > 70) {
-                  ctx.shadowBlur = 6;
-                  ctx.shadowColor = '#d946ef';
-                  ctx.fillRect(gaugeX, gaugeY, fillLen, gaugeW);
-                  ctx.shadowBlur = 0;
-              }
-          }
-      }
+      // Draw enhanced car with all details
+      drawEnhancedCar(
+        ctx,
+        visualConfig,
+        car.isDrifting,
+        isFever,
+        scoreRef.current.feverGauge,
+        gameTimeRef.current
+      );
 
       ctx.restore();
   };
