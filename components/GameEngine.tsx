@@ -28,9 +28,10 @@ const getDistanceFromSegment = (seg: TrackSegment, pX: number, pY: number) => {
         // Calculate the angle from arc center to the point
         const pointAngle = Math.atan2(pY - cy, pX - cx);
 
-        // Calculate arc start and end angles
+        // Calculate arc start and end angles using segment's actual turn angle
+        const actualTurnAngle = Math.abs(normalizeAngle(seg.endAngle - seg.startAngle));
         const arcStartAngle = perpAngle + Math.PI; // Start of arc
-        const arcEndAngle = arcStartAngle + (Math.PI / 2 * dir); // End of arc (90 degree turn)
+        const arcEndAngle = arcStartAngle + (actualTurnAngle * dir); // End of arc (dynamic turn angle)
 
         // Normalize angles to check if point is within arc range
         const normalizeToRange = (angle: number, reference: number) => {
@@ -97,6 +98,59 @@ const calculateDynamicRadius = (score: number): number => {
     }
 };
 
+// Calculate dynamic turn angle based on current score
+// Returns angle in radians
+const calculateDynamicTurnAngle = (score: number): number => {
+    const {
+        TURN_ANGLE_TIER1_MIN, TURN_ANGLE_TIER1_MAX,
+        TURN_ANGLE_TIER2_MIN, TURN_ANGLE_TIER2_MAX,
+        TURN_ANGLE_TIER3_MIN, TURN_ANGLE_TIER3_MAX,
+        TURN_ANGLE_TIER2_SCORE, TURN_ANGLE_TIER3_SCORE
+    } = GAME_CONSTANTS;
+
+    const toRadians = (deg: number) => deg * Math.PI / 180;
+
+    let minAngle: number;
+    let maxAngle: number;
+
+    if (score < TURN_ANGLE_TIER2_SCORE) {
+        // Tier 1: 0~1000 - comfortable range (75-90 degrees)
+        minAngle = TURN_ANGLE_TIER1_MIN;
+        maxAngle = TURN_ANGLE_TIER1_MAX;
+    } else if (score < TURN_ANGLE_TIER3_SCORE) {
+        // Tier 2: 1000~5000 - more variety (60-105 degrees)
+        minAngle = TURN_ANGLE_TIER2_MIN;
+        maxAngle = TURN_ANGLE_TIER2_MAX;
+    } else {
+        // Tier 3: 5000+ - full range (60-120 degrees)
+        minAngle = TURN_ANGLE_TIER3_MIN;
+        maxAngle = TURN_ANGLE_TIER3_MAX;
+    }
+
+    // Weighted random: 70% normal (80-100), 20% mild (60-80), 10% sharp (100-120)
+    const roll = Math.random();
+    let angleDegrees: number;
+
+    if (roll < 0.7) {
+        // Normal range: bias towards 80-100 degrees
+        const normalMin = Math.max(minAngle, 80);
+        const normalMax = Math.min(maxAngle, 100);
+        angleDegrees = normalMin + Math.random() * (normalMax - normalMin);
+    } else if (roll < 0.9) {
+        // Mild curve: 60-80 degrees (if available in tier)
+        const mildMin = minAngle;
+        const mildMax = Math.min(maxAngle, 80);
+        angleDegrees = mildMin + Math.random() * (mildMax - mildMin);
+    } else {
+        // Sharp curve: 100-120 degrees (if available in tier)
+        const sharpMin = Math.max(minAngle, 100);
+        const sharpMax = maxAngle;
+        angleDegrees = sharpMin + Math.random() * (sharpMax - sharpMin);
+    }
+
+    return toRadians(angleDegrees);
+};
+
 // Duplicated helper for use inside component (or we could extract it out, but for minimal diff keep local)
 const createSegmentData = (prevSeg: TrackSegment, type: 'STRAIGHT' | 'TURN_LEFT' | 'TURN_RIGHT', calculatedWidth: number, score: number = 0): TrackSegment => {
     const id = prevSeg.id + 1;
@@ -115,9 +169,9 @@ const createSegmentData = (prevSeg: TrackSegment, type: 'STRAIGHT' | 'TURN_LEFT'
         width: calculatedWidth
       };
     } else {
-      // Use dynamic radius based on current score
+      // Use dynamic radius and angle based on current score
       const radius = calculateDynamicRadius(score);
-      const turnAngle = Math.PI / 2;
+      const turnAngle = calculateDynamicTurnAngle(score);
       const direction = type === 'TURN_LEFT' ? -1 : 1;
       const endAngle = normalizeAngle(startAngle + (turnAngle * direction));
 
@@ -129,7 +183,7 @@ const createSegmentData = (prevSeg: TrackSegment, type: 'STRAIGHT' | 'TURN_LEFT'
       const ey = cy + Math.sin(endAngle - (Math.PI / 2 * direction)) * radius;
 
       return {
-        id, type, length: (Math.PI * radius) / 2, curvature: 1/radius,
+        id, type, length: turnAngle * radius, curvature: 1/radius,
         startAngle, endAngle,
         startX, startY,
         endX: ex, endY: ey,
@@ -216,11 +270,12 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
           const cy = seg.startY + Math.sin(perpAngle) * radius;
 
           const startA = perpAngle + Math.PI;
-          const turnAngle = Math.PI / 2 * dir;
+          // Use segment's actual turn angle instead of fixed 90 degrees
+          const actualTurnAngle = normalizeAngle(seg.endAngle - seg.startAngle);
 
           for (let i = 0; i <= numSamples; i++) {
               const t = i / numSamples;
-              const angle = startA + turnAngle * t;
+              const angle = startA + actualTurnAngle * t;
               points.push({
                   x: cx + Math.cos(angle) * radius,
                   y: cy + Math.sin(angle) * radius
@@ -892,7 +947,9 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
            const cx = seg.startX + Math.cos(perpAngle) * radius;
            const cy = seg.startY + Math.sin(perpAngle) * radius;
            const startA = perpAngle + Math.PI;
-           const endA = startA + (Math.PI/2 * dir);
+           // Use segment's actual turn angle
+           const actualTurnAngle = normalizeAngle(seg.endAngle - seg.startAngle);
+           const endA = startA + actualTurnAngle;
            ctx.arc(cx, cy, radius, startA, endA, seg.type === 'TURN_LEFT');
       }
       ctx.stroke();
@@ -925,7 +982,9 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
             const cy = seg.startY + Math.sin(perpAngle) * radius;
             const drawRadius = radius - (side * dir * (halfWidth + offset));
             const startA = perpAngle + Math.PI;
-            const endA = startA + (Math.PI/2 * dir);
+            // Use segment's actual turn angle
+            const actualTurnAngle = normalizeAngle(seg.endAngle - seg.startAngle);
+            const endA = startA + actualTurnAngle;
             ctx.arc(cx, cy, drawRadius, startA, endA, seg.type === 'TURN_LEFT');
           }
         };

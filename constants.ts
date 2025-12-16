@@ -26,6 +26,17 @@ export const GAME_CONSTANTS = {
   SEGMENT_RADIUS_MAX: 350,    // Wide turn (easier)
   TIGHT_TURN_START_SCORE: 1000,   // Score when tight turns start appearing
   TIGHT_TURN_FULL_SCORE: 5000,    // Score when tight turn probability is at max
+
+  // Dynamic Turn Angle System (score-based)
+  // Angles in degrees for readability, converted to radians in code
+  TURN_ANGLE_TIER1_MIN: 75,   // 0~1000: comfortable range
+  TURN_ANGLE_TIER1_MAX: 90,
+  TURN_ANGLE_TIER2_MIN: 60,   // 1000~5000: more variety
+  TURN_ANGLE_TIER2_MAX: 105,
+  TURN_ANGLE_TIER3_MIN: 60,   // 5000+: full range
+  TURN_ANGLE_TIER3_MAX: 120,
+  TURN_ANGLE_TIER2_SCORE: 1000,   // Score threshold for tier 2
+  TURN_ANGLE_TIER3_SCORE: 5000,   // Score threshold for tier 3
   
   // Scoring & Collision
   COLLISION_MARGIN: 0, // Strict: Crash exactly when car center (half body) crosses track edge.
