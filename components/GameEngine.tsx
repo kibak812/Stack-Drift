@@ -3,6 +3,7 @@ import { GameScore, TurnQuality, TrackSegment, CarState, FloatingText, SkidMark,
 import { GAME_CONSTANTS, COLORS, DEFAULT_CAR_VISUAL, FEVER_CAR_VISUAL, CAR_DIMS } from '../constants';
 import { lerp, normalizeAngle, distance, closestPointOnLine } from '../utils/math';
 import { drawEnhancedCar } from '../utils/rendering';
+import { lightenColor, darkenColor } from '../utils/colors';
 
 interface GameEngineProps {
   onGameOver: (score: GameScore) => void;
@@ -855,15 +856,36 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
   };
 
   const drawSegment = (ctx: CanvasRenderingContext2D, seg: TrackSegment) => {
+      const baseColor = (seg.id % 2 === 0) ? COLORS.TRACK_FG_EVEN : COLORS.TRACK_FG_ODD;
+
+      // Create track surface gradient (center lighter, edges darker)
+      let trackStyle: string | CanvasGradient = baseColor;
+      if (seg.type === 'STRAIGHT') {
+        const perpAngle = seg.startAngle + Math.PI / 2;
+        const halfW = seg.width / 2;
+        const gradient = ctx.createLinearGradient(
+          seg.startX - Math.cos(perpAngle) * halfW,
+          seg.startY - Math.sin(perpAngle) * halfW,
+          seg.startX + Math.cos(perpAngle) * halfW,
+          seg.startY + Math.sin(perpAngle) * halfW
+        );
+        const darkerEdge = darkenColor(baseColor, 0.08);
+        const lighterCenter = lightenColor(baseColor, 0.06);
+        gradient.addColorStop(0, darkerEdge);
+        gradient.addColorStop(0.5, lighterCenter);
+        gradient.addColorStop(1, darkerEdge);
+        trackStyle = gradient;
+      }
+
+      // Draw main track surface
       ctx.beginPath();
       ctx.lineWidth = seg.width;
-      ctx.strokeStyle = (seg.id % 2 === 0) ? COLORS.TRACK_FG_EVEN : COLORS.TRACK_FG_ODD;
-      
+      ctx.strokeStyle = trackStyle;
+
       if (seg.type === 'STRAIGHT') {
           ctx.moveTo(seg.startX, seg.startY);
           ctx.lineTo(seg.endX, seg.endY);
       } else {
-           // Use actual radius from segment's curvature for correct rendering
            const radius = 1 / seg.curvature;
            const dir = seg.type === 'TURN_LEFT' ? -1 : 1;
            const perpAngle = seg.startAngle + (Math.PI / 2 * dir);
@@ -875,42 +897,60 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
       }
       ctx.stroke();
 
+      // Draw center line
       ctx.strokeStyle = COLORS.TRACK_CENTER;
       ctx.lineWidth = 4;
       ctx.setLineDash([20, 20]);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      const drawBorder = (side: -1 | 1) => {
+      // Draw borders with depth effect
+      const drawBorderWithDepth = (side: -1 | 1) => {
         const halfWidth = seg.width / 2;
-        ctx.beginPath();
-        ctx.lineWidth = 10;
-        ctx.strokeStyle = COLORS.TRACK_BORDER;
-        
-        if (seg.type === 'STRAIGHT') {
+
+        const drawBorderPath = (offset: number) => {
+          ctx.beginPath();
+          if (seg.type === 'STRAIGHT') {
             const angle = seg.startAngle;
-            const perp = angle + (Math.PI / 2 * side); 
-            const ox = Math.cos(perp) * halfWidth;
-            const oy = Math.sin(perp) * halfWidth;
-            
+            const perp = angle + (Math.PI / 2 * side);
+            const ox = Math.cos(perp) * (halfWidth + offset);
+            const oy = Math.sin(perp) * (halfWidth + offset);
             ctx.moveTo(seg.startX + ox, seg.startY + oy);
             ctx.lineTo(seg.endX + ox, seg.endY + oy);
-        } else {
-            // Use actual radius from segment's curvature for correct border rendering
+          } else {
             const radius = 1 / seg.curvature;
             const dir = seg.type === 'TURN_LEFT' ? -1 : 1;
             const perpAngle = seg.startAngle + (Math.PI / 2 * dir);
             const cx = seg.startX + Math.cos(perpAngle) * radius;
             const cy = seg.startY + Math.sin(perpAngle) * radius;
-            const drawRadius = radius - (side * dir * halfWidth);
+            const drawRadius = radius - (side * dir * (halfWidth + offset));
             const startA = perpAngle + Math.PI;
             const endA = startA + (Math.PI/2 * dir);
             ctx.arc(cx, cy, drawRadius, startA, endA, seg.type === 'TURN_LEFT');
-        }
+          }
+        };
+
+        // Layer 1: Outer shadow (dark)
+        ctx.lineWidth = 10;
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)';
+        drawBorderPath(side * 3);
+        ctx.stroke();
+
+        // Layer 2: Main border
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = COLORS.TRACK_BORDER;
+        drawBorderPath(0);
+        ctx.stroke();
+
+        // Layer 3: Inner highlight (bright)
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        drawBorderPath(side * -3);
         ctx.stroke();
       };
-      drawBorder(-1);
-      drawBorder(1);
+
+      drawBorderWithDepth(-1);
+      drawBorderWithDepth(1);
   };
 
   const drawSkidMarks = (ctx: CanvasRenderingContext2D) => {
