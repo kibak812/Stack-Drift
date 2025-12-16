@@ -215,7 +215,7 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
   // Initialize Track immediately so it's never empty
   const trackRef = useRef<TrackSegment[]>([createInitialSegment()]);
   
-  const cameraRef = useRef({ x: 0, y: 0, zoom: 0.8 });
+  const cameraRef = useRef({ x: 0, y: 0, zoom: 0.8, shakeX: 0, shakeY: 0, shakeIntensity: 0 });
   const effectsRef = useRef<FloatingText[]>([]);
   const skidMarksRef = useRef<SkidMark[]>([]); // New: Skid Marks
   const lastTirePosRef = useRef<{lx: number, ly: number, rx: number, ry: number} | null>(null); // For continuous lines
@@ -544,23 +544,46 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
         }
       }
 
-      // Generate Speed Lines when moving fast
+      // Generate Speed Lines when moving fast - Enhanced for better speed feel
       const speedRatio = car.speed / GAME_CONSTANTS.MAX_SPEED;
-      if (speedRatio > 0.5 && !car.isCrashed && speedLinesRef.current.length < 30) {
-        const spawnChance = (speedRatio - 0.5) * 0.4 * dt * 60; // Scale with delta time
-        if (Math.random() < spawnChance) {
-          // Spawn in peripheral vision area (behind and to the sides)
-          const angle = car.heading + Math.PI + (Math.random() - 0.5) * 1.2;
-          const dist = 150 + Math.random() * 250;
+      const maxLines = 50 + Math.floor(speedRatio * 30); // More lines at higher speed
+
+      if (speedRatio > 0.3 && !car.isCrashed && speedLinesRef.current.length < maxLines) {
+        // Higher spawn rate for more dramatic effect
+        const spawnChance = (speedRatio - 0.3) * 1.2 * dt * 60;
+
+        // Spawn multiple lines per frame at high speed
+        const linesToSpawn = Math.floor(spawnChance) + (Math.random() < (spawnChance % 1) ? 1 : 0);
+
+        for (let i = 0; i < linesToSpawn && speedLinesRef.current.length < maxLines; i++) {
+          // Spawn in wider peripheral vision area (sides and behind)
+          const sideAngle = (Math.random() - 0.5) * 2.0; // Wider spread
+          const angle = car.heading + Math.PI + sideAngle;
+          const dist = 100 + Math.random() * 350;
 
           speedLinesRef.current.push({
-            x: car.x + Math.cos(angle) * dist + (Math.random() - 0.5) * 150,
-            y: car.y + Math.sin(angle) * dist + (Math.random() - 0.5) * 150,
-            length: 40 + speedRatio * 60,
-            opacity: 0.2 + speedRatio * 0.3
+            x: car.x + Math.cos(angle) * dist + (Math.random() - 0.5) * 200,
+            y: car.y + Math.sin(angle) * dist + (Math.random() - 0.5) * 200,
+            length: 60 + speedRatio * 100, // Longer lines
+            opacity: 0.3 + speedRatio * 0.5 // More visible
           });
         }
       }
+
+      // Camera Shake - based on drift and speed
+      const driftIntensity = Math.abs(currentTurnRateRef.current) / GAME_CONSTANTS.MAX_TURN_STRENGTH;
+      const speedIntensity = Math.max(0, (speedRatio - 0.5) * 2); // Kicks in above 50% speed
+
+      // Target shake intensity: higher when drifting or going fast
+      const targetShake = Math.min(1.0, driftIntensity * 0.7 + speedIntensity * 0.4);
+
+      // Smooth transition to target
+      cameraRef.current.shakeIntensity = lerp(cameraRef.current.shakeIntensity, targetShake, dt * 8);
+
+      // Generate random shake offset
+      const shakeAmount = cameraRef.current.shakeIntensity * 6; // Max 6 pixels shake
+      cameraRef.current.shakeX = (Math.random() - 0.5) * 2 * shakeAmount;
+      cameraRef.current.shakeY = (Math.random() - 0.5) * 2 * shakeAmount;
   };
 
   const updatePhysics = (dt: number) => {
@@ -824,9 +847,11 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
     // Camera Follow
     cameraRef.current.x = lerp(cameraRef.current.x, car.x, 0.1);
     cameraRef.current.y = lerp(cameraRef.current.y, car.y, 0.1);
-    
+
     ctx.save();
-    ctx.translate(width / 2, height * 0.8); 
+    // Apply camera shake offset at screen space level
+    const { shakeX, shakeY } = cameraRef.current;
+    ctx.translate(width / 2 + shakeX, height * 0.8 + shakeY);
     ctx.scale(cameraRef.current.zoom, cameraRef.current.zoom);
     ctx.rotate(-car.heading - Math.PI/2);
     ctx.translate(-cameraRef.current.x, -cameraRef.current.y);
@@ -1048,10 +1073,28 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
 
       ctx.save();
       ctx.lineCap = 'round';
-      ctx.lineWidth = 2;
+
+      const isFever = scoreRef.current.fever;
 
       speedLinesRef.current.forEach(line => {
-          ctx.strokeStyle = `rgba(255, 255, 255, ${line.opacity * 0.3})`;
+          // Gradient effect: thicker and brighter at the start, fading out
+          const gradient = ctx.createLinearGradient(
+            line.x, line.y,
+            line.x + Math.cos(car.heading) * line.length,
+            line.y + Math.sin(car.heading) * line.length
+          );
+
+          // Color varies based on fever mode
+          const baseColor = isFever ? '236, 72, 153' : '255, 255, 255'; // Pink in fever, white otherwise
+
+          gradient.addColorStop(0, `rgba(${baseColor}, ${line.opacity * 0.6})`);
+          gradient.addColorStop(0.5, `rgba(${baseColor}, ${line.opacity * 0.3})`);
+          gradient.addColorStop(1, `rgba(${baseColor}, 0)`);
+
+          // Variable line width based on opacity (faster = thicker)
+          ctx.lineWidth = 2 + line.opacity * 2;
+          ctx.strokeStyle = gradient;
+
           ctx.beginPath();
           ctx.moveTo(line.x, line.y);
           ctx.lineTo(
