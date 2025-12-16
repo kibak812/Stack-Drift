@@ -649,7 +649,8 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
 
   const evaluateSegmentScore = (seg: TrackSegment, edgeRatio: number) => {
       if (seg.type === 'STRAIGHT') {
-          scoreRef.current.score += 10;
+          const straightFeverBonus = scoreRef.current.fever ? 2.0 : 1.0;
+          scoreRef.current.score += Math.floor(10 * straightFeverBonus);
           return;
       }
       
@@ -663,12 +664,15 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
 
       scoreRef.current.combo++;
       let multiplier = 1;
-      if (scoreRef.current.combo >= 15) multiplier = 4;
-      else if (scoreRef.current.combo >= 10) multiplier = 3;
-      else if (scoreRef.current.combo >= 5) multiplier = 2;
+      if (scoreRef.current.combo >= 50) multiplier = 3;
+      else if (scoreRef.current.combo >= 25) multiplier = 2.5;
+      else if (scoreRef.current.combo >= 10) multiplier = 2;
 
       const baseScore = 100;
-      const points = quality === TurnQuality.PERFECT ? baseScore * multiplier : baseScore;
+      const feverBonus = scoreRef.current.fever ? 2.0 : 1.0;
+      const points = quality === TurnQuality.PERFECT
+        ? Math.floor(baseScore * multiplier * feverBonus)
+        : Math.floor(baseScore * feverBonus);
 
       scoreRef.current.score += points;
       scoreRef.current.coins += Math.floor(points / 20);
