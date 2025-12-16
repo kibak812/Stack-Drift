@@ -361,23 +361,39 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
     if (isReviving) {
       const safeIndex = Math.max(0, currentSegmentIndexRef.current - 1);
       const safeSeg = trackRef.current[safeIndex];
-      
+
       if (safeSeg) {
+        // Clear track segments ahead and generate straight safety zone
+        trackRef.current = trackRef.current.slice(0, safeIndex + 1);
+
+        // Generate forced straight segments for safety zone
+        const currentWidth = safeSeg.width;
+        let lastSeg = safeSeg;
+        for (let i = 0; i < GAME_CONSTANTS.REVIVE_STRAIGHT_SEGMENTS; i++) {
+          const straightSeg = createSegmentData(lastSeg, 'STRAIGHT', currentWidth, 0);
+          trackRef.current.push(straightSeg);
+          lastSeg = straightSeg;
+        }
+
+        // Position car at the start of the first new straight segment
+        const firstStraight = trackRef.current[safeIndex + 1];
+
         carRef.current.isCrashed = false;
         carRef.current.isDrifting = false;
-        carRef.current.x = safeSeg.startX;
-        carRef.current.y = safeSeg.startY;
-        carRef.current.heading = safeSeg.startAngle;
-        carRef.current.visualAngle = safeSeg.startAngle;
-        carRef.current.speed = GAME_CONSTANTS.BASE_SPEED; 
+        carRef.current.x = firstStraight.startX;
+        carRef.current.y = firstStraight.startY;
+        carRef.current.heading = firstStraight.startAngle;
+        carRef.current.visualAngle = firstStraight.startAngle;
+        carRef.current.speed = GAME_CONSTANTS.BASE_SPEED;
         currentTurnRateRef.current = 0;
         inputDirRef.current = 0;
         effectsRef.current = [];
         skidMarksRef.current = []; // Clear skids on revive
         lastTirePosRef.current = null;
         framesRef.current = 0; // Reset safe frames on revive
+        currentSegmentIndexRef.current = safeIndex + 1; // Start from the new straight section
       }
-    } 
+    }
   }, [isReviving]);
 
   const handleInputStart = (clientX: number) => {

@@ -37,7 +37,10 @@ export const GAME_CONSTANTS = {
   // Fever Gauge System
   FEVER_GAUGE_GOOD: 5,      // +5% per Good
   FEVER_GAUGE_PERFECT: 20,  // +20% per Perfect
-  FEVER_DURATION: 5, 
+  FEVER_DURATION: 5,
+
+  // Revive System
+  REVIVE_STRAIGHT_SEGMENTS: 5, // Number of straight segments after revive for safety
 };
 
 export const COLORS = {
