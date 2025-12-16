@@ -66,6 +66,33 @@ const createInitialSegment = (): TrackSegment => ({
     width: GAME_CONSTANTS.TRACK_WIDTH_START
 });
 
+// Calculate dynamic turn radius based on game progression
+const calculateDynamicRadius = (segmentId: number): number => {
+    const { SEGMENT_RADIUS_MIN, SEGMENT_RADIUS_MAX, TIGHT_TURN_START_SEGMENT, TIGHT_TURN_FULL_SEGMENT } = GAME_CONSTANTS;
+
+    // Before tight turns start, use wider radius only
+    if (segmentId < TIGHT_TURN_START_SEGMENT) {
+        return SEGMENT_RADIUS_MAX;
+    }
+
+    // Calculate progression (0 to 1) for tight turn probability
+    const progression = Math.min(1, (segmentId - TIGHT_TURN_START_SEGMENT) / (TIGHT_TURN_FULL_SEGMENT - TIGHT_TURN_START_SEGMENT));
+
+    // Random factor with bias towards tighter turns as game progresses
+    // Early: mostly wide turns, Later: mix of tight and wide
+    const tightTurnChance = progression * 0.6; // Max 60% chance for tight turns
+
+    if (Math.random() < tightTurnChance) {
+        // Tight turn: radius between MIN and midpoint
+        const midRadius = (SEGMENT_RADIUS_MIN + SEGMENT_RADIUS_MAX) / 2;
+        return SEGMENT_RADIUS_MIN + Math.random() * (midRadius - SEGMENT_RADIUS_MIN);
+    } else {
+        // Normal/wide turn: radius between midpoint and MAX
+        const midRadius = (SEGMENT_RADIUS_MIN + SEGMENT_RADIUS_MAX) / 2;
+        return midRadius + Math.random() * (SEGMENT_RADIUS_MAX - midRadius);
+    }
+};
+
 // Duplicated helper for use inside component (or we could extract it out, but for minimal diff keep local)
 const createSegmentData = (prevSeg: TrackSegment, type: 'STRAIGHT' | 'TURN_LEFT' | 'TURN_RIGHT', calculatedWidth: number): TrackSegment => {
     const id = prevSeg.id + 1;
@@ -84,15 +111,16 @@ const createSegmentData = (prevSeg: TrackSegment, type: 'STRAIGHT' | 'TURN_LEFT'
         width: calculatedWidth
       };
     } else {
-      const radius = GAME_CONSTANTS.SEGMENT_RADIUS_TURN;
-      const turnAngle = Math.PI / 2; 
+      // Use dynamic radius based on game progression
+      const radius = calculateDynamicRadius(id);
+      const turnAngle = Math.PI / 2;
       const direction = type === 'TURN_LEFT' ? -1 : 1;
       const endAngle = normalizeAngle(startAngle + (turnAngle * direction));
-      
+
       const perpAngle = startAngle + (Math.PI / 2 * direction);
       const cx = startX + Math.cos(perpAngle) * radius;
       const cy = startY + Math.sin(perpAngle) * radius;
-      
+
       const ex = cx + Math.cos(endAngle - (Math.PI / 2 * direction)) * radius;
       const ey = cy + Math.sin(endAngle - (Math.PI / 2 * direction)) * radius;
 
@@ -203,8 +231,8 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
       // Check entire history except immediate previous segments
       const skipRecent = 4; // Skip last 4 segments (they're connected)
       // Safe distance must account for both track widths plus generous margin
-      // to prevent visual overlap when tracks run parallel
-      const safeDistance = GAME_CONSTANTS.TRACK_WIDTH_START + GAME_CONSTANTS.SEGMENT_RADIUS_TURN; // 260 + 300 = 560px
+      // to prevent visual overlap when tracks run parallel (use max radius for safety)
+      const safeDistance = GAME_CONSTANTS.TRACK_WIDTH_START + GAME_CONSTANTS.SEGMENT_RADIUS_MAX; // 260 + 350 = 610px
 
       // Sample more points along the candidate segment for better precision
       const samplePoints = getSegmentSamplePoints(candidate, 12);
