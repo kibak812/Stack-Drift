@@ -4,6 +4,8 @@ import { GameEngine } from './components/GameEngine';
 import { GameHUD } from './components/GameHUD';
 import { MainMenu } from './components/MainMenu';
 import { ResultScreen } from './components/ResultScreen';
+import { ChallengeScreen } from './components/ChallengeScreen';
+import { SharedScore, getSharedScoreFromUrl } from './utils/share';
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.MENU);
@@ -12,13 +14,20 @@ const App: React.FC = () => {
   });
   const [reviveUsed, setReviveUsed] = useState(false);
   const [isReviving, setIsReviving] = useState(false);
-  const [gameId, setGameId] = useState(0); 
+  const [gameId, setGameId] = useState(0);
+  const [challengeScore, setChallengeScore] = useState<SharedScore | null>(null);
 
-  // Load high score from local storage
+  // Load high score from local storage and check for shared score in URL
   useEffect(() => {
     const saved = localStorage.getItem('stackdrift_highscore');
     if (saved) {
       setGameScore(prev => ({ ...prev, highScore: parseInt(saved) }));
+    }
+
+    // Check for shared score in URL
+    const shared = getSharedScoreFromUrl();
+    if (shared) {
+      setChallengeScore(shared);
     }
   }, []);
 
@@ -80,11 +89,24 @@ const App: React.FC = () => {
       )}
 
       {appState === AppState.RESULT && (
-        <ResultScreen 
-          score={gameScore} 
-          onRestart={handleStartGame} 
+        <ResultScreen
+          score={gameScore}
+          onRestart={handleStartGame}
           onRevive={handleRevive}
           canRevive={!reviveUsed}
+        />
+      )}
+
+      {/* Challenge Screen - shown when opening a shared link */}
+      {challengeScore && appState === AppState.MENU && (
+        <ChallengeScreen
+          challengeScore={challengeScore}
+          myHighScore={gameScore.highScore}
+          onAccept={() => {
+            setChallengeScore(null);
+            handleStartGame();
+          }}
+          onDismiss={() => setChallengeScore(null)}
         />
       )}
     </div>
