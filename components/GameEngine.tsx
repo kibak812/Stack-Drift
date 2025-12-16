@@ -876,12 +876,13 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
           ctx.fill();
       }
 
-      // Fever gauge - vertical bar next to car
-      const gaugeX = -28; // Left side of car
-      const gaugeH = 40;  // Total height
-      const gaugeW = 4;   // Width
-      const gaugeY = -gaugeH / 2; // Centered vertically
-      const fillH = (scoreRef.current.feverGauge / 100) * gaugeH;
+      // Fever gauge - vertical bar beside car (left side)
+      // In local coords: X = car direction (front/back), Y = car sides (left/right)
+      const gaugeY = -18; // Left side of car (negative Y = left)
+      const gaugeW = 4;   // Width (Y direction - thickness)
+      const gaugeH = 40;  // Height (X direction - length along car)
+      const gaugeX = -gaugeH / 2; // Centered along car length
+      const fillLen = (scoreRef.current.feverGauge / 100) * gaugeH;
 
       ctx.shadowBlur = 0;
 
@@ -889,30 +890,30 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
           // Fever active - pulsing full bar
           const pulse = 0.7 + Math.sin(gameTimeRef.current * 10) * 0.3;
           ctx.fillStyle = `rgba(236, 72, 153, ${pulse})`; // pink-500
-          ctx.fillRect(gaugeX, gaugeY, gaugeW, gaugeH);
+          ctx.fillRect(gaugeX, gaugeY, gaugeH, gaugeW);
           // Glow effect
           ctx.shadowBlur = 8;
           ctx.shadowColor = '#ec4899';
-          ctx.fillRect(gaugeX, gaugeY, gaugeW, gaugeH);
+          ctx.fillRect(gaugeX, gaugeY, gaugeH, gaugeW);
           ctx.shadowBlur = 0;
       } else {
           // Background (empty part)
           ctx.fillStyle = 'rgba(30, 41, 59, 0.8)'; // slate-800
-          ctx.fillRect(gaugeX, gaugeY, gaugeW, gaugeH);
+          ctx.fillRect(gaugeX, gaugeY, gaugeH, gaugeW);
 
-          // Filled part (from bottom)
-          if (fillH > 0) {
-              const gradient = ctx.createLinearGradient(gaugeX, gaugeY + gaugeH, gaugeX, gaugeY + gaugeH - fillH);
+          // Filled part (from back to front = -X to +X direction)
+          if (fillLen > 0) {
+              const gradient = ctx.createLinearGradient(gaugeX, gaugeY, gaugeX + fillLen, gaugeY);
               gradient.addColorStop(0, '#a855f7'); // purple-500
               gradient.addColorStop(1, '#ec4899'); // pink-500
               ctx.fillStyle = gradient;
-              ctx.fillRect(gaugeX, gaugeY + gaugeH - fillH, gaugeW, fillH);
+              ctx.fillRect(gaugeX, gaugeY, fillLen, gaugeW);
 
               // Glow when high
               if (scoreRef.current.feverGauge > 70) {
                   ctx.shadowBlur = 6;
                   ctx.shadowColor = '#d946ef';
-                  ctx.fillRect(gaugeX, gaugeY + gaugeH - fillH, gaugeW, fillH);
+                  ctx.fillRect(gaugeX, gaugeY, fillLen, gaugeW);
                   ctx.shadowBlur = 0;
               }
           }
