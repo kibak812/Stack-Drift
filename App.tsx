@@ -8,7 +8,7 @@ import { ResultScreen } from './components/ResultScreen';
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.MENU);
   const [gameScore, setGameScore] = useState<GameScore>({
-    score: 0, highScore: 0, combo: 0, coins: 0, lastQuality: TurnQuality.NONE, fever: false, feverTimer: 0
+    score: 0, highScore: 0, combo: 0, coins: 0, lastQuality: TurnQuality.NONE, fever: false, feverTimer: 0, feverGauge: 0
   });
   const [reviveUsed, setReviveUsed] = useState(false);
   const [isReviving, setIsReviving] = useState(false);
@@ -30,7 +30,7 @@ const App: React.FC = () => {
     
     // Reset Score State immediately
     setGameScore(prev => ({
-       score: 0, highScore: prev.highScore, combo: 0, coins: prev.coins, lastQuality: TurnQuality.NONE, fever: false, feverTimer: 0
+       score: 0, highScore: prev.highScore, combo: 0, coins: prev.coins, lastQuality: TurnQuality.NONE, fever: false, feverTimer: 0, feverGauge: 0
     }));
   };
 
