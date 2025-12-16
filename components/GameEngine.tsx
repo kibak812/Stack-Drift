@@ -616,7 +616,7 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
 
     // 4. Track Cleanup - Remove old segments behind camera
     // This prevents track overlap issues and keeps memory usage low
-    const deleteThreshold = 20; // Keep 20 segments behind for visual buffer
+    const deleteThreshold = 8; // Keep minimal segments behind
     if (currentSegmentIndexRef.current > deleteThreshold) {
         const deleteCount = currentSegmentIndexRef.current - deleteThreshold;
         trackRef.current.splice(0, deleteCount);

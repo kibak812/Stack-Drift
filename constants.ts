@@ -15,7 +15,7 @@ export const GAME_CONSTANTS = {
   TRACK_WIDTH_START: 260, // Start very wide
   TRACK_WIDTH_END: 140,   // End narrow
   TRACK_NARROWING_RATE: 0.8, // Pixels smaller per segment
-  TRACK_GENERATION_BUFFER: 50, // Increase buffer significantly to prevent visual pop-in (User Request)
+  TRACK_GENERATION_BUFFER: 15, // Keep small to prevent self-intersection
   RENDER_WINDOW_SIZE: 16, // Segments ahead/behind to keep fully opaque
   
   SEGMENT_LENGTH_STRAIGHT: 300,
