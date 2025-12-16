@@ -223,27 +223,16 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
       return true;
   };
 
-  // Prevent spirals by checking recent turn history - increased window for better detection
-  const getRecentTurnBias = (history: TrackSegment[], limit: number = 12) => {
-      let balance = 0; // Negative = Left heavy, Positive = Right heavy
-      const start = Math.max(0, history.length - limit);
-      for(let i=start; i<history.length; i++) {
-          if (history[i].type === 'TURN_LEFT') balance--;
-          if (history[i].type === 'TURN_RIGHT') balance++;
-      }
-      return balance;
-  };
-
-  // Check cumulative angle change to detect spiraling
-  const getCumulativeAngleChange = (history: TrackSegment[], limit: number = 20): number => {
-      let totalAngle = 0;
-      const start = Math.max(0, history.length - limit);
-      for (let i = start; i < history.length; i++) {
+  // Check last N turns to detect consecutive same-direction turns
+  const getLastNTurns = (history: TrackSegment[], n: number): ('TURN_LEFT' | 'TURN_RIGHT')[] => {
+      const turns: ('TURN_LEFT' | 'TURN_RIGHT')[] = [];
+      for (let i = history.length - 1; i >= 0 && turns.length < n; i--) {
           const seg = history[i];
-          if (seg.type === 'TURN_LEFT') totalAngle -= Math.PI / 2;
-          else if (seg.type === 'TURN_RIGHT') totalAngle += Math.PI / 2;
+          if (seg.type === 'TURN_LEFT' || seg.type === 'TURN_RIGHT') {
+              turns.unshift(seg.type);
+          }
       }
-      return totalAngle;
+      return turns;
   };
 
   const generateSegment = (prevSeg: TrackSegment | null): TrackSegment => {
@@ -261,42 +250,34 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
         return createSegmentData(prevSeg, 'STRAIGHT', calculatedWidth);
     }
 
-    // Check for spiraling using cumulative angle
-    const cumulativeAngle = getCumulativeAngleChange(trackRef.current, 20);
-    const balance = getRecentTurnBias(trackRef.current, 12);
+    // Simple anti-spiral rule: 2 consecutive same-direction turns → force opposite turn
+    const lastTurns = getLastNTurns(trackRef.current, 2);
+    let forcedTurn: 'TURN_LEFT' | 'TURN_RIGHT' | null = null;
 
-    // Determine preferred turn direction based on anti-spiral logic
-    let preferredTurn: 'TURN_LEFT' | 'TURN_RIGHT' = Math.random() > 0.5 ? 'TURN_LEFT' : 'TURN_RIGHT';
-    let forceStraight = false;
-
-    // Strong spiral detection: cumulative angle exceeds ~270 degrees in one direction
-    if (cumulativeAngle < -Math.PI * 1.5) {
-        preferredTurn = 'TURN_RIGHT';
-        forceStraight = true; // Strongly prefer straight to break spiral
-    } else if (cumulativeAngle > Math.PI * 1.5) {
-        preferredTurn = 'TURN_LEFT';
-        forceStraight = true;
-    } else if (balance <= -3) {
-        preferredTurn = 'TURN_RIGHT';
-    } else if (balance >= 3) {
-        preferredTurn = 'TURN_LEFT';
+    if (lastTurns.length >= 2 && lastTurns[0] === lastTurns[1]) {
+        // 2 consecutive same-direction turns detected → force opposite
+        forcedTurn = lastTurns[0] === 'TURN_LEFT' ? 'TURN_RIGHT' : 'TURN_LEFT';
     }
 
-    const otherTurn = preferredTurn === 'TURN_LEFT' ? 'TURN_RIGHT' : 'TURN_LEFT';
-
-    // Build candidate list based on conditions
+    // Build candidate list based on forced turn or random selection
     let candidates: ('STRAIGHT' | 'TURN_LEFT' | 'TURN_RIGHT')[];
 
-    if (forceStraight) {
-        // When spiral detected, strongly prefer straight
-        candidates = ['STRAIGHT', preferredTurn, otherTurn];
+    if (forcedTurn) {
+        // Must include the forced opposite turn
+        candidates = [forcedTurn, 'STRAIGHT'];
     } else if (prevSeg.type === 'STRAIGHT') {
-        candidates = [preferredTurn, 'STRAIGHT', otherTurn];
+        // After straight, prefer a turn for variety
+        const randomTurn: 'TURN_LEFT' | 'TURN_RIGHT' = Math.random() > 0.5 ? 'TURN_LEFT' : 'TURN_RIGHT';
+        const otherTurn = randomTurn === 'TURN_LEFT' ? 'TURN_RIGHT' : 'TURN_LEFT';
+        candidates = [randomTurn, 'STRAIGHT', otherTurn];
     } else {
-        candidates = ['STRAIGHT', preferredTurn, otherTurn];
+        // After turn, prefer straight
+        const randomTurn: 'TURN_LEFT' | 'TURN_RIGHT' = Math.random() > 0.5 ? 'TURN_LEFT' : 'TURN_RIGHT';
+        const otherTurn = randomTurn === 'TURN_LEFT' ? 'TURN_RIGHT' : 'TURN_LEFT';
+        candidates = ['STRAIGHT', randomTurn, otherTurn];
     }
 
-    // Try ALL candidates to find a safe path using full segment collision check
+    // Try candidates in order, checking for collision safety
     for (const type of candidates) {
         const candidateSeg = createSegmentData(prevSeg, type, calculatedWidth);
         if (isSegmentSafe(candidateSeg, trackRef.current)) {
@@ -304,9 +285,9 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
         }
     }
 
-    // Second pass: try with opposite order for turns
-    const fallbackCandidates: ('STRAIGHT' | 'TURN_LEFT' | 'TURN_RIGHT')[] = ['STRAIGHT', otherTurn, preferredTurn];
-    for (const type of fallbackCandidates) {
+    // Fallback: try all options in a different order
+    const allOptions: ('STRAIGHT' | 'TURN_LEFT' | 'TURN_RIGHT')[] = ['STRAIGHT', 'TURN_LEFT', 'TURN_RIGHT'];
+    for (const type of allOptions) {
         const candidateSeg = createSegmentData(prevSeg, type, calculatedWidth);
         if (isSegmentSafe(candidateSeg, trackRef.current)) {
             return candidateSeg;
@@ -314,8 +295,6 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
     }
 
     // Final fallback: create a straight segment
-    // If even this is unsafe, the track is in an unrecoverable state
-    // Better to force straight than to generate overlapping turns
     return createSegmentData(prevSeg, 'STRAIGHT', calculatedWidth);
   };
   // --- End Track Generation Logic ---
