@@ -855,17 +855,17 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
       ctx.save();
       ctx.translate(car.x, car.y);
       ctx.rotate(car.visualAngle);
-      
+
       ctx.fillStyle = scoreRef.current.fever ? COLORS.CAR_FEVER : COLORS.CAR;
-      
+
       ctx.beginPath();
-      ctx.rect(-15, -10, 30, 20); 
+      ctx.rect(-15, -10, 30, 20);
       ctx.fill();
-      
+
       ctx.fillStyle = '#fff';
       ctx.fillRect(10, -8, 5, 4);
       ctx.fillRect(10, 4, 5, 4);
-      
+
       if (car.isDrifting) {
           ctx.shadowBlur = 10;
           ctx.shadowColor = scoreRef.current.fever ? '#f0f' : '#fff';
@@ -875,6 +875,49 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
           ctx.arc(-20, -10, 5, 0, Math.PI * 2);
           ctx.fill();
       }
+
+      // Fever gauge - vertical bar next to car
+      const gaugeX = -28; // Left side of car
+      const gaugeH = 40;  // Total height
+      const gaugeW = 4;   // Width
+      const gaugeY = -gaugeH / 2; // Centered vertically
+      const fillH = (scoreRef.current.feverGauge / 100) * gaugeH;
+
+      ctx.shadowBlur = 0;
+
+      if (scoreRef.current.fever) {
+          // Fever active - pulsing full bar
+          const pulse = 0.7 + Math.sin(gameTimeRef.current * 10) * 0.3;
+          ctx.fillStyle = `rgba(236, 72, 153, ${pulse})`; // pink-500
+          ctx.fillRect(gaugeX, gaugeY, gaugeW, gaugeH);
+          // Glow effect
+          ctx.shadowBlur = 8;
+          ctx.shadowColor = '#ec4899';
+          ctx.fillRect(gaugeX, gaugeY, gaugeW, gaugeH);
+          ctx.shadowBlur = 0;
+      } else {
+          // Background (empty part)
+          ctx.fillStyle = 'rgba(30, 41, 59, 0.8)'; // slate-800
+          ctx.fillRect(gaugeX, gaugeY, gaugeW, gaugeH);
+
+          // Filled part (from bottom)
+          if (fillH > 0) {
+              const gradient = ctx.createLinearGradient(gaugeX, gaugeY + gaugeH, gaugeX, gaugeY + gaugeH - fillH);
+              gradient.addColorStop(0, '#a855f7'); // purple-500
+              gradient.addColorStop(1, '#ec4899'); // pink-500
+              ctx.fillStyle = gradient;
+              ctx.fillRect(gaugeX, gaugeY + gaugeH - fillH, gaugeW, fillH);
+
+              // Glow when high
+              if (scoreRef.current.feverGauge > 70) {
+                  ctx.shadowBlur = 6;
+                  ctx.shadowColor = '#d946ef';
+                  ctx.fillRect(gaugeX, gaugeY + gaugeH - fillH, gaugeW, fillH);
+                  ctx.shadowBlur = 0;
+              }
+          }
+      }
+
       ctx.restore();
   };
 
