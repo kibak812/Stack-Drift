@@ -588,13 +588,13 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
       // 1. Impact Punch - triggers on drift state change (smooth version)
       if (isDrifting && !wasDrifting) {
         // Drift START: set target punch (opposite to drift direction)
-        const punchStrength = 8;
+        const punchStrength = 6;
         const punchAngle = car.heading + (Math.PI / 2) * (-driftDir);
         cam.impactTargetX = Math.cos(punchAngle) * punchStrength;
         cam.impactTargetY = Math.sin(punchAngle) * punchStrength;
       } else if (!isDrifting && wasDrifting) {
         // Drift END: smaller target punch
-        const punchStrength = 4;
+        const punchStrength = 3;
         cam.impactTargetX = (Math.random() - 0.5) * punchStrength;
         cam.impactTargetY = (Math.random() - 0.5) * punchStrength;
       }
@@ -609,15 +609,15 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
 
       // 2. Directional Offset - smooth offset opposite to drift direction
       const driftIntensity = Math.abs(currentTurnRateRef.current) / GAME_CONSTANTS.MAX_TURN_STRENGTH;
-      const targetOffsetAmount = isDrifting ? driftIntensity * 20 : 0; // Max 20px offset (reduced)
+      const targetOffsetAmount = isDrifting ? driftIntensity * 28 : 0; // Max 28px offset
       const offsetAngle = car.heading + (Math.PI / 2) * (-driftDir);
 
       const targetOffsetX = Math.cos(offsetAngle) * targetOffsetAmount;
       const targetOffsetY = Math.sin(offsetAngle) * targetOffsetAmount;
 
-      // Smooth lerp to target offset (slower for buttery feel)
-      cam.driftOffsetX = lerp(cam.driftOffsetX, targetOffsetX, dt * 2.5);
-      cam.driftOffsetY = lerp(cam.driftOffsetY, targetOffsetY, dt * 2.5);
+      // Smooth lerp to target offset
+      cam.driftOffsetX = lerp(cam.driftOffsetX, targetOffsetX, dt * 4);
+      cam.driftOffsetY = lerp(cam.driftOffsetY, targetOffsetY, dt * 4);
 
       // 3. Speed Shake - subtle continuous shake at high speed only
       const speedIntensity = Math.max(0, (speedRatio - 0.6) * 2.5); // Kicks in above 60% speed

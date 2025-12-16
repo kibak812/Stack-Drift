@@ -7,8 +7,8 @@ export const GAME_CONSTANTS = {
   
   // Drift Feel - Tuned for balanced inertia (Issue 3 fix)
   MAX_TURN_STRENGTH: 3.5, // Max radians per second
-  TURN_RATE_ATTACK: 3.8, // Smoother entry for buttery feel
-  TURN_RATE_RELEASE: 7.0, // Slightly slower recovery for smoothness
+  TURN_RATE_ATTACK: 4.2, // Responsive entry
+  TURN_RATE_RELEASE: 7.5, // Snappy recovery
   DRIFT_ANGLE_OFFSET: 0.5, // Visual car rotation when drifting
   
   // Track Generation
