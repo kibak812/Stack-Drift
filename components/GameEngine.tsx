@@ -728,32 +728,39 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
 
   const drawTrack = (ctx: CanvasRenderingContext2D) => {
       // Use 'butt' cap for distinct segments
-      ctx.lineCap = 'butt'; 
+      ctx.lineCap = 'butt';
       ctx.lineJoin = 'round';
 
       const curr = currentSegmentIndexRef.current;
       const total = trackRef.current.length;
-      
-      const windowSize = GAME_CONSTANTS.RENDER_WINDOW_SIZE; 
-      const activeStart = Math.max(0, curr - windowSize);
-      const activeEnd = Math.min(total, curr + windowSize);
 
-      const renderPass = (start: number, end: number, isDimmed: boolean) => {
+      // Active window: current segment and a few ahead for visibility
+      const activeStart = Math.max(0, curr - 2);
+      const activeEnd = Math.min(total, curr + 10);
+
+      // Helper to render segments with specific alpha
+      const renderSegments = (start: number, end: number, alpha: number) => {
           if (start >= end) return;
-          ctx.globalAlpha = isDimmed ? 0.3 : 1.0; 
-          for(let i=start; i<end; i++) {
+          ctx.globalAlpha = alpha;
+          for (let i = start; i < end; i++) {
              const seg = trackRef.current[i];
              drawSegment(ctx, seg);
           }
-          ctx.globalAlpha = 1.0; // Reset
       };
 
-      // Pass 1: Background Past
-      renderPass(0, activeStart, true);
-      // Pass 2: Background Future
-      renderPass(activeEnd, total, true);
-      // Pass 3: Active Foreground
-      renderPass(activeStart, activeEnd, false);
+      // Pass 1: Render ALL inactive (background) tracks first with very low opacity
+      // This ensures they are visually "below" the active track
+      renderSegments(0, activeStart, 0.12);
+      renderSegments(activeEnd, total, 0.12);
+
+      // Pass 2: Render active (foreground) track on top with full opacity
+      ctx.globalAlpha = 1.0;
+      for (let i = activeStart; i < activeEnd; i++) {
+          const seg = trackRef.current[i];
+          drawSegment(ctx, seg);
+      }
+
+      ctx.globalAlpha = 1.0; // Reset
   };
 
   const drawSegment = (ctx: CanvasRenderingContext2D, seg: TrackSegment) => {
