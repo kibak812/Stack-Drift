@@ -15,7 +15,8 @@ const getDistanceFromSegment = (seg: TrackSegment, pX: number, pY: number) => {
         const p = closestPointOnLine(seg.startX, seg.startY, seg.endX, seg.endY, pX, pY);
         return distance(pX, pY, p.x, p.y);
     } else {
-        const radius = GAME_CONSTANTS.SEGMENT_RADIUS_TURN;
+        // Use actual radius from segment's curvature (radius = 1/curvature)
+        const radius = 1 / seg.curvature;
         const dir = seg.type === 'TURN_LEFT' ? -1 : 1;
         const perpAngle = seg.startAngle + (Math.PI / 2 * dir);
         const cx = seg.startX + Math.cos(perpAngle) * radius;
@@ -203,8 +204,8 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
               });
           }
       } else {
-          // For turns, sample points along the arc
-          const radius = GAME_CONSTANTS.SEGMENT_RADIUS_TURN;
+          // For turns, sample points along the arc using actual radius from curvature
+          const radius = 1 / seg.curvature;
           const dir = seg.type === 'TURN_LEFT' ? -1 : 1;
           const perpAngle = seg.startAngle + (Math.PI / 2 * dir);
           const cx = seg.startX + Math.cos(perpAngle) * radius;
@@ -583,7 +584,8 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
                 const p = closestPointOnLine(finishedSeg.startX, finishedSeg.startY, finishedSeg.endX, finishedSeg.endY, car.x, car.y);
                 distToGeoCenter = distance(car.x, car.y, p.x, p.y);
              } else {
-                const radius = GAME_CONSTANTS.SEGMENT_RADIUS_TURN;
+                // Use actual radius from segment's curvature
+                const radius = 1 / finishedSeg.curvature;
                 const dir = finishedSeg.type === 'TURN_LEFT' ? -1 : 1;
                 const perpAngle = finishedSeg.startAngle + (Math.PI / 2 * dir);
                 const cx = finishedSeg.startX + Math.cos(perpAngle) * radius;
@@ -803,12 +805,13 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
           ctx.moveTo(seg.startX, seg.startY);
           ctx.lineTo(seg.endX, seg.endY);
       } else {
-           const radius = GAME_CONSTANTS.SEGMENT_RADIUS_TURN;
+           // Use actual radius from segment's curvature for correct rendering
+           const radius = 1 / seg.curvature;
            const dir = seg.type === 'TURN_LEFT' ? -1 : 1;
            const perpAngle = seg.startAngle + (Math.PI / 2 * dir);
            const cx = seg.startX + Math.cos(perpAngle) * radius;
            const cy = seg.startY + Math.sin(perpAngle) * radius;
-           const startA = perpAngle + Math.PI; 
+           const startA = perpAngle + Math.PI;
            const endA = startA + (Math.PI/2 * dir);
            ctx.arc(cx, cy, radius, startA, endA, seg.type === 'TURN_LEFT');
       }
@@ -835,13 +838,14 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
             ctx.moveTo(seg.startX + ox, seg.startY + oy);
             ctx.lineTo(seg.endX + ox, seg.endY + oy);
         } else {
-            const radius = GAME_CONSTANTS.SEGMENT_RADIUS_TURN;
+            // Use actual radius from segment's curvature for correct border rendering
+            const radius = 1 / seg.curvature;
             const dir = seg.type === 'TURN_LEFT' ? -1 : 1;
             const perpAngle = seg.startAngle + (Math.PI / 2 * dir);
             const cx = seg.startX + Math.cos(perpAngle) * radius;
             const cy = seg.startY + Math.sin(perpAngle) * radius;
             const drawRadius = radius - (side * dir * halfWidth);
-            const startA = perpAngle + Math.PI; 
+            const startA = perpAngle + Math.PI;
             const endA = startA + (Math.PI/2 * dir);
             ctx.arc(cx, cy, drawRadius, startA, endA, seg.type === 'TURN_LEFT');
         }
