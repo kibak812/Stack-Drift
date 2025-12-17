@@ -116,3 +116,23 @@ export interface SpeedLine {
   length: number;
   opacity: number;
 }
+
+// Collectible coin on track
+export interface Coin {
+  id: number;
+  x: number;
+  y: number;
+  collected: boolean;
+  collectTime: number; // For collection animation
+  segmentId: number; // Track which segment this coin belongs to
+}
+
+// Coin collection particle effect
+export interface CoinParticle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  size: number;
+}

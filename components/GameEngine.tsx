@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
-import { GameScore, TurnQuality, TrackSegment, CarState, FloatingText, SkidMark, CarVisualConfig, SpeedLine } from '../types';
+import { GameScore, TurnQuality, TrackSegment, CarState, FloatingText, SkidMark, CarVisualConfig, SpeedLine, Coin, CoinParticle } from '../types';
 import { GAME_CONSTANTS, COLORS, DEFAULT_CAR_VISUAL, FEVER_CAR_VISUAL, CAR_DIMS } from '../constants';
 import { lerp, normalizeAngle, distance, closestPointOnLine } from '../utils/math';
 import { drawEnhancedCar } from '../utils/rendering';
@@ -229,6 +229,9 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
   const lastTirePosRef = useRef<{lx: number, ly: number, rx: number, ry: number} | null>(null); // For continuous lines
   const speedLinesRef = useRef<SpeedLine[]>([]); // Speed lines for atmosphere
   const wasDriftingRef = useRef<boolean>(false); // Track drift state changes for impact punch
+  const coinsRef = useRef<Coin[]>([]); // Collectible coins on track
+  const coinParticlesRef = useRef<CoinParticle[]>([]); // Coin collection particles
+  const coinIdCounterRef = useRef<number>(0); // Unique ID generator for coins
 
   // Input: 0 = None, -1 = Left, 1 = Right
   const inputDirRef = useRef<number>(0);
@@ -254,6 +257,75 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
           life: 1.0,
           scale
       });
+  };
+
+  // --- Coin Generation ---
+  const generateCoinsForSegment = (seg: TrackSegment): Coin[] => {
+      const coins: Coin[] = [];
+
+      if (seg.type === 'STRAIGHT') {
+          // Place coins along the center line
+          const numCoins = GAME_CONSTANTS.COINS_PER_STRAIGHT;
+          for (let i = 0; i < numCoins; i++) {
+              const t = (i + 1) / (numCoins + 1); // Evenly spaced
+              coins.push({
+                  id: coinIdCounterRef.current++,
+                  x: seg.startX + (seg.endX - seg.startX) * t,
+                  y: seg.startY + (seg.endY - seg.startY) * t,
+                  collected: false,
+                  collectTime: 0,
+                  segmentId: seg.id
+              });
+          }
+      } else {
+          // For turns, place coins on the ideal drift line (outer edge)
+          // This rewards players who drift on the correct line
+          const numCoins = GAME_CONSTANTS.COINS_PER_TURN;
+          const radius = 1 / seg.curvature;
+          const dir = seg.type === 'TURN_LEFT' ? -1 : 1;
+          const perpAngle = seg.startAngle + (Math.PI / 2 * dir);
+          const cx = seg.startX + Math.cos(perpAngle) * radius;
+          const cy = seg.startY + Math.sin(perpAngle) * radius;
+
+          const startA = perpAngle + Math.PI;
+          const actualTurnAngle = normalizeAngle(seg.endAngle - seg.startAngle);
+
+          // Offset from center to outer edge (where ideal drift line is)
+          const idealLineOffset = seg.width * 0.35; // 35% from center towards outer edge
+          const coinRadius = radius + (dir * idealLineOffset);
+
+          for (let i = 0; i < numCoins; i++) {
+              const t = (i + 1) / (numCoins + 1);
+              const angle = startA + actualTurnAngle * t;
+              coins.push({
+                  id: coinIdCounterRef.current++,
+                  x: cx + Math.cos(angle) * coinRadius,
+                  y: cy + Math.sin(angle) * coinRadius,
+                  collected: false,
+                  collectTime: 0,
+                  segmentId: seg.id
+              });
+          }
+      }
+
+      return coins;
+  };
+
+  // Spawn coin collection particles
+  const spawnCoinParticles = (x: number, y: number) => {
+      const numParticles = 8;
+      for (let i = 0; i < numParticles; i++) {
+          const angle = (Math.PI * 2 * i) / numParticles + Math.random() * 0.5;
+          const speed = 80 + Math.random() * 60;
+          coinParticlesRef.current.push({
+              x,
+              y,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              life: 1.0,
+              size: 3 + Math.random() * 3
+          });
+      }
   };
 
   // --- Track Generation Logic ---
@@ -405,7 +477,11 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
     // Only fill if needed (initial render)
     if (trackRef.current.length < 2) {
         for (let i = 0; i < 15; i++) {
-            trackRef.current.push(generateSegment(trackRef.current[trackRef.current.length - 1]));
+            const newSeg = generateSegment(trackRef.current[trackRef.current.length - 1]);
+            trackRef.current.push(newSeg);
+            // Generate coins for this segment
+            const newCoins = generateCoinsForSegment(newSeg);
+            coinsRef.current.push(...newCoins);
         }
     }
   }, []);
@@ -461,6 +537,14 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
         lastTirePosRef.current = null;
         framesRef.current = 0; // Reset safe frames on revive
         currentSegmentIndexRef.current = safeIndex + 1; // Start from the new straight section
+
+        // Clear old coins and generate new ones for the safety zone
+        coinsRef.current = coinsRef.current.filter(c => c.segmentId <= safeIndex);
+        coinParticlesRef.current = [];
+        for (let i = safeIndex + 1; i < trackRef.current.length; i++) {
+          const newCoins = generateCoinsForSegment(trackRef.current[i]);
+          coinsRef.current.push(...newCoins);
+        }
       }
     }
   }, [isReviving]);
@@ -552,6 +636,23 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
             speedLinesRef.current.splice(i, 1);
         }
       }
+
+      // Update Coin Particles
+      for (let i = coinParticlesRef.current.length - 1; i >= 0; i--) {
+        const particle = coinParticlesRef.current[i];
+        particle.x += particle.vx * dt;
+        particle.y += particle.vy * dt;
+        particle.life -= dt * 3; // Fast fade
+        if (particle.life <= 0) {
+            coinParticlesRef.current.splice(i, 1);
+        }
+      }
+
+      // Clean up collected coins after animation delay
+      const currentTime = gameTimeRef.current;
+      coinsRef.current = coinsRef.current.filter(
+        c => !c.collected || (currentTime - c.collectTime) < 0.3
+      );
 
       // Generate Speed Lines when moving fast - Enhanced for better speed feel
       const speedRatio = car.speed / GAME_CONSTANTS.MAX_SPEED;
@@ -793,19 +894,41 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
     // 3. Track Gen - Ensure buffer ahead
     while (trackRef.current.length < currentSegmentIndexRef.current + GAME_CONSTANTS.TRACK_GENERATION_BUFFER) {
         const last = trackRef.current[trackRef.current.length - 1];
-        trackRef.current.push(generateSegment(last));
+        const newSeg = generateSegment(last);
+        trackRef.current.push(newSeg);
+        // Generate coins for the new segment
+        const newCoins = generateCoinsForSegment(newSeg);
+        coinsRef.current.push(...newCoins);
     }
 
-    // 4. Track Cleanup - Remove old segments behind camera
+    // 4. Coin Collection - Check for coins near car
+    const collectRadius = GAME_CONSTANTS.COIN_COLLECT_RADIUS;
+    for (const coin of coinsRef.current) {
+        if (!coin.collected) {
+            const dist = distance(car.x, car.y, coin.x, coin.y);
+            if (dist < collectRadius) {
+                coin.collected = true;
+                coin.collectTime = gameTimeRef.current;
+                scoreRef.current.coins += GAME_CONSTANTS.COIN_VALUE;
+                spawnCoinParticles(coin.x, coin.y);
+            }
+        }
+    }
+
+    // 5. Track Cleanup - Remove old segments behind camera
     // This prevents track overlap issues and keeps memory usage low
     const deleteThreshold = 3; // Keep only 3 segments behind
     if (currentSegmentIndexRef.current > deleteThreshold) {
         const deleteCount = currentSegmentIndexRef.current - deleteThreshold;
+        const minSegId = trackRef.current[0]?.id || 0;
         trackRef.current.splice(0, deleteCount);
         currentSegmentIndexRef.current -= deleteCount;
+        // Clean up coins from deleted segments
+        const newMinSegId = trackRef.current[0]?.id || 0;
+        coinsRef.current = coinsRef.current.filter(c => c.segmentId >= newMinSegId);
     }
     
-    // 5. Fever Logic
+    // 6. Fever Logic
     if (scoreRef.current.fever) {
         scoreRef.current.feverTimer -= dt;
         if (scoreRef.current.feverTimer <= 0) {
@@ -845,7 +968,7 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
         : Math.floor(baseScore * feverBonus);
 
       scoreRef.current.score += points;
-      scoreRef.current.coins += Math.floor(points / 20);
+      // Note: Coins are now collected from the track, not auto-generated
       scoreRef.current.lastQuality = quality;
 
       if (quality === TurnQuality.PERFECT) {
@@ -902,9 +1025,11 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
     ctx.translate(-cameraRef.current.x, -cameraRef.current.y);
     
     drawTrack(ctx);
+    drawCoins(ctx); // Draw coins on track surface
     drawSpeedLines(ctx, car); // Speed lines in world space
     drawSkidMarks(ctx); // Render skids before car but after track
     drawCar(ctx, car);
+    drawCoinParticles(ctx); // Coin collection particles above car
     drawEffects(ctx);
 
     ctx.restore();
@@ -1150,6 +1275,88 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
       });
 
       ctx.restore();
+  };
+
+  const drawCoins = (ctx: CanvasRenderingContext2D) => {
+      const currentTime = gameTimeRef.current;
+      const coinRadius = GAME_CONSTANTS.COIN_RADIUS;
+
+      coinsRef.current.forEach(coin => {
+          ctx.save();
+          ctx.translate(coin.x, coin.y);
+
+          if (coin.collected) {
+              // Collection animation: scale up and fade out
+              const elapsed = currentTime - coin.collectTime;
+              const scale = 1 + elapsed * 3;
+              const alpha = Math.max(0, 1 - elapsed * 4);
+              ctx.scale(scale, scale);
+              ctx.globalAlpha = alpha;
+          } else {
+              // Gentle floating animation
+              const floatOffset = Math.sin(currentTime * 3 + coin.id) * 2;
+              ctx.translate(0, floatOffset);
+          }
+
+          // Coin gradient (gold to amber) - matching HUD style
+          const gradient = ctx.createRadialGradient(
+              -coinRadius * 0.3, -coinRadius * 0.3, 0,
+              0, 0, coinRadius
+          );
+          gradient.addColorStop(0, '#fef3c7'); // Light gold highlight
+          gradient.addColorStop(0.5, '#fcd34d'); // Gold
+          gradient.addColorStop(1, '#f59e0b'); // Amber
+
+          // Outer glow
+          ctx.beginPath();
+          ctx.arc(0, 0, coinRadius + 4, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(252, 211, 77, 0.3)';
+          ctx.fill();
+
+          // Main coin body
+          ctx.beginPath();
+          ctx.arc(0, 0, coinRadius, 0, Math.PI * 2);
+          ctx.fillStyle = gradient;
+          ctx.fill();
+
+          // Inner ring (subtle depth)
+          ctx.beginPath();
+          ctx.arc(0, 0, coinRadius * 0.7, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(245, 158, 11, 0.5)';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          // Shine highlight
+          ctx.beginPath();
+          ctx.arc(-coinRadius * 0.3, -coinRadius * 0.3, coinRadius * 0.25, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+          ctx.fill();
+
+          ctx.restore();
+      });
+  };
+
+  const drawCoinParticles = (ctx: CanvasRenderingContext2D) => {
+      coinParticlesRef.current.forEach(particle => {
+          ctx.save();
+          ctx.globalAlpha = particle.life;
+
+          // Gold sparkle gradient
+          const gradient = ctx.createRadialGradient(
+              particle.x, particle.y, 0,
+              particle.x, particle.y, particle.size
+          );
+          gradient.addColorStop(0, '#fef3c7');
+          gradient.addColorStop(0.5, '#fcd34d');
+          gradient.addColorStop(1, 'rgba(245, 158, 11, 0)');
+
+          ctx.beginPath();
+          ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+          ctx.fillStyle = gradient;
+          ctx.fill();
+
+          ctx.restore();
+      });
   };
 
   const drawFeverOverlay = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
