@@ -59,7 +59,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({ score }) => {
              <div className="text-xl font-bold text-cyan-400 scale-110 transition-transform">PERFECT!</div>
          )}
          {score.lastQuality === TurnQuality.GOOD && (
-             <div className="text-lg font-bold text-green-400">GOOD</div>
+             <div className="text-lg font-bold text-yellow-400">GOOD</div>
          )}
          {score.lastQuality === TurnQuality.MISS && (
              <div className="text-lg font-bold text-red-400">MISS</div>
