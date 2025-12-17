@@ -263,14 +263,15 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
   const generateCoinsForSegment = (seg: TrackSegment): Coin[] => {
       const coins: Coin[] = [];
 
-      // Random chance to spawn coins on this segment
-      if (Math.random() > GAME_CONSTANTS.COIN_SPAWN_CHANCE) {
-          return coins; // No coins on this segment
-      }
-
       if (seg.type === 'STRAIGHT') {
+          // Lower spawn chance for straight segments
+          if (Math.random() > GAME_CONSTANTS.COIN_SPAWN_CHANCE_STRAIGHT) {
+              return coins;
+          }
+          // Random number of coins within range
+          const numCoins = GAME_CONSTANTS.COINS_MIN_STRAIGHT +
+              Math.floor(Math.random() * (GAME_CONSTANTS.COINS_MAX_STRAIGHT - GAME_CONSTANTS.COINS_MIN_STRAIGHT + 1));
           // Place coins along the center line
-          const numCoins = GAME_CONSTANTS.COINS_PER_STRAIGHT;
           for (let i = 0; i < numCoins; i++) {
               const t = (i + 1) / (numCoins + 1); // Evenly spaced
               coins.push({
@@ -283,9 +284,15 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
               });
           }
       } else {
+          // Higher spawn chance for turn segments
+          if (Math.random() > GAME_CONSTANTS.COIN_SPAWN_CHANCE_TURN) {
+              return coins;
+          }
+          // Random number of coins within range
+          const numCoins = GAME_CONSTANTS.COINS_MIN_TURN +
+              Math.floor(Math.random() * (GAME_CONSTANTS.COINS_MAX_TURN - GAME_CONSTANTS.COINS_MIN_TURN + 1));
           // For turns, place coins on the ideal drift line (outer edge)
           // This rewards players who drift on the correct line
-          const numCoins = GAME_CONSTANTS.COINS_PER_TURN;
           const radius = 1 / seg.curvature;
           const dir = seg.type === 'TURN_LEFT' ? -1 : 1;
           const perpAngle = seg.startAngle + (Math.PI / 2 * dir);
