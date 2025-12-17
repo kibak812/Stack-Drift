@@ -263,6 +263,11 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
   const generateCoinsForSegment = (seg: TrackSegment): Coin[] => {
       const coins: Coin[] = [];
 
+      // Random chance to spawn coins on this segment
+      if (Math.random() > GAME_CONSTANTS.COIN_SPAWN_CHANCE) {
+          return coins; // No coins on this segment
+      }
+
       if (seg.type === 'STRAIGHT') {
           // Place coins along the center line
           const numCoins = GAME_CONSTANTS.COINS_PER_STRAIGHT;
@@ -311,19 +316,19 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
       return coins;
   };
 
-  // Spawn coin collection particles
+  // Spawn coin collection particles - simple burst
   const spawnCoinParticles = (x: number, y: number) => {
-      const numParticles = 8;
+      const numParticles = 4; // Fewer, simpler particles
       for (let i = 0; i < numParticles; i++) {
-          const angle = (Math.PI * 2 * i) / numParticles + Math.random() * 0.5;
-          const speed = 80 + Math.random() * 60;
+          const angle = (Math.PI * 2 * i) / numParticles;
+          const speed = 60 + Math.random() * 30;
           coinParticlesRef.current.push({
               x,
               y,
               vx: Math.cos(angle) * speed,
               vy: Math.sin(angle) * speed,
               life: 1.0,
-              size: 3 + Math.random() * 3
+              size: 3
           });
       }
   };
@@ -1286,51 +1291,22 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
           ctx.translate(coin.x, coin.y);
 
           if (coin.collected) {
-              // Collection animation: scale up and fade out
+              // Simple fade out on collection
               const elapsed = currentTime - coin.collectTime;
-              const scale = 1 + elapsed * 3;
-              const alpha = Math.max(0, 1 - elapsed * 4);
-              ctx.scale(scale, scale);
+              const alpha = Math.max(0, 1 - elapsed * 5);
               ctx.globalAlpha = alpha;
-          } else {
-              // Gentle floating animation
-              const floatOffset = Math.sin(currentTime * 3 + coin.id) * 2;
-              ctx.translate(0, floatOffset);
           }
 
-          // Coin gradient (gold to amber) - matching HUD style
-          const gradient = ctx.createRadialGradient(
-              -coinRadius * 0.3, -coinRadius * 0.3, 0,
-              0, 0, coinRadius
-          );
-          gradient.addColorStop(0, '#fef3c7'); // Light gold highlight
-          gradient.addColorStop(0.5, '#fcd34d'); // Gold
-          gradient.addColorStop(1, '#f59e0b'); // Amber
-
-          // Outer glow
-          ctx.beginPath();
-          ctx.arc(0, 0, coinRadius + 4, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(252, 211, 77, 0.3)';
-          ctx.fill();
-
-          // Main coin body
+          // Simple solid coin - minimal design
           ctx.beginPath();
           ctx.arc(0, 0, coinRadius, 0, Math.PI * 2);
-          ctx.fillStyle = gradient;
+          ctx.fillStyle = '#fcd34d'; // Gold
           ctx.fill();
 
-          // Inner ring (subtle depth)
-          ctx.beginPath();
-          ctx.arc(0, 0, coinRadius * 0.7, 0, Math.PI * 2);
-          ctx.strokeStyle = 'rgba(245, 158, 11, 0.5)';
-          ctx.lineWidth = 1.5;
+          // Simple border
+          ctx.strokeStyle = '#f59e0b'; // Amber border
+          ctx.lineWidth = 2;
           ctx.stroke();
-
-          // Shine highlight
-          ctx.beginPath();
-          ctx.arc(-coinRadius * 0.3, -coinRadius * 0.3, coinRadius * 0.25, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-          ctx.fill();
 
           ctx.restore();
       });
@@ -1341,18 +1317,10 @@ export const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, onScoreUpdat
           ctx.save();
           ctx.globalAlpha = particle.life;
 
-          // Gold sparkle gradient
-          const gradient = ctx.createRadialGradient(
-              particle.x, particle.y, 0,
-              particle.x, particle.y, particle.size
-          );
-          gradient.addColorStop(0, '#fef3c7');
-          gradient.addColorStop(0.5, '#fcd34d');
-          gradient.addColorStop(1, 'rgba(245, 158, 11, 0)');
-
+          // Simple solid gold particle
           ctx.beginPath();
           ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
-          ctx.fillStyle = gradient;
+          ctx.fillStyle = '#fcd34d';
           ctx.fill();
 
           ctx.restore();

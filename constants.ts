@@ -56,6 +56,7 @@ export const GAME_CONSTANTS = {
   // Coin System
   COIN_RADIUS: 12, // Visual radius of coins
   COIN_COLLECT_RADIUS: 30, // Collection hitbox radius
+  COIN_SPAWN_CHANCE: 0.3, // 30% chance to spawn coins on a segment
   COINS_PER_STRAIGHT: 4, // Coins placed on straight segments
   COINS_PER_TURN: 5, // Coins placed on turn segments
   COIN_VALUE: 1, // Base value per coin
