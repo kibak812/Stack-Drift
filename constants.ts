@@ -52,6 +52,13 @@ export const GAME_CONSTANTS = {
 
   // Revive System
   REVIVE_STRAIGHT_SEGMENTS: 5, // Number of straight segments after revive for safety
+
+  // Coin System
+  COIN_RADIUS: 12, // Visual radius of coins
+  COIN_COLLECT_RADIUS: 30, // Collection hitbox radius
+  COINS_PER_STRAIGHT: 4, // Coins placed on straight segments
+  COINS_PER_TURN: 5, // Coins placed on turn segments
+  COIN_VALUE: 1, // Base value per coin
 };
 
 export const COLORS = {
