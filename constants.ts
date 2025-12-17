@@ -56,9 +56,12 @@ export const GAME_CONSTANTS = {
   // Coin System
   COIN_RADIUS: 12, // Visual radius of coins
   COIN_COLLECT_RADIUS: 30, // Collection hitbox radius
-  COIN_SPAWN_CHANCE: 0.3, // 30% chance to spawn coins on a segment
-  COINS_PER_STRAIGHT: 4, // Coins placed on straight segments
-  COINS_PER_TURN: 5, // Coins placed on turn segments
+  COIN_SPAWN_CHANCE_TURN: 0.35, // 35% chance to spawn coins on turn segments
+  COIN_SPAWN_CHANCE_STRAIGHT: 0.15, // 15% chance to spawn coins on straight segments
+  COINS_MIN_STRAIGHT: 2, // Minimum coins on straight segments
+  COINS_MAX_STRAIGHT: 5, // Maximum coins on straight segments
+  COINS_MIN_TURN: 3, // Minimum coins on turn segments
+  COINS_MAX_TURN: 6, // Maximum coins on turn segments
   COIN_VALUE: 1, // Base value per coin
 };
 
